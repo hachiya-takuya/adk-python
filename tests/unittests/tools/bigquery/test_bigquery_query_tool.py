@@ -14,12 +14,16 @@
 
 from __future__ import annotations
 
+import datetime
+import decimal
 import os
 import textwrap
 from typing import Optional
 from unittest import mock
 
-from google.adk.tools import BaseTool
+import dateutil
+import dateutil.relativedelta
+from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.bigquery import BigQueryCredentialsConfig
 from google.adk.tools.bigquery import BigQueryToolset
 from google.adk.tools.bigquery.config import BigQueryToolConfig
@@ -33,7 +37,7 @@ import pytest
 
 
 async def get_tool(
-    name: str, tool_config: Optional[BigQueryToolConfig] = None
+    name: str, tool_settings: Optional[BigQueryToolConfig] = None
 ) -> BaseTool:
   """Get a tool from BigQuery toolset.
 
@@ -50,7 +54,7 @@ async def get_tool(
   toolset = BigQueryToolset(
       credentials_config=credentials_config,
       tool_filter=[name],
-      bigquery_tool_config=tool_config,
+      bigquery_tool_config=tool_settings,
   )
 
   tools = await toolset.get_tools()
@@ -60,7 +64,7 @@ async def get_tool(
 
 
 @pytest.mark.parametrize(
-    ("tool_config",),
+    ("tool_settings",),
     [
         pytest.param(None, id="no-config"),
         pytest.param(BigQueryToolConfig(), id="default-config"),
@@ -71,14 +75,14 @@ async def get_tool(
     ],
 )
 @pytest.mark.asyncio
-async def test_execute_sql_declaration_read_only(tool_config):
+async def test_execute_sql_declaration_read_only(tool_settings):
   """Test BigQuery execute_sql tool declaration in read-only mode.
 
   This test verifies that the execute_sql tool declaration reflects the
   read-only capability.
   """
   tool_name = "execute_sql"
-  tool = await get_tool(tool_name, tool_config)
+  tool = await get_tool(tool_name, tool_settings)
   assert tool.name == tool_name
   assert tool.description == textwrap.dedent("""\
     Run a BigQuery or BigQuery ML SQL query in the project and return the result.
@@ -88,7 +92,7 @@ async def test_execute_sql_declaration_read_only(tool_config):
           executed.
         query (str): The BigQuery SQL query to be executed.
         credentials (Credentials): The credentials to use for the request.
-        config (BigQueryToolConfig): The configuration for the tool.
+        settings (BigQueryToolConfig): The settings for the tool.
         tool_context (ToolContext): The context for the tool.
 
     Returns:
@@ -123,7 +127,7 @@ async def test_execute_sql_declaration_read_only(tool_config):
 
 
 @pytest.mark.parametrize(
-    ("tool_config",),
+    ("tool_settings",),
     [
         pytest.param(
             BigQueryToolConfig(write_mode=WriteMode.ALLOWED),
@@ -132,14 +136,14 @@ async def test_execute_sql_declaration_read_only(tool_config):
     ],
 )
 @pytest.mark.asyncio
-async def test_execute_sql_declaration_write(tool_config):
+async def test_execute_sql_declaration_write(tool_settings):
   """Test BigQuery execute_sql tool declaration with all writes enabled.
 
   This test verifies that the execute_sql tool declaration reflects the write
   capability.
   """
   tool_name = "execute_sql"
-  tool = await get_tool(tool_name, tool_config)
+  tool = await get_tool(tool_name, tool_settings)
   assert tool.name == tool_name
   assert tool.description == textwrap.dedent("""\
     Run a BigQuery or BigQuery ML SQL query in the project and return the result.
@@ -149,7 +153,7 @@ async def test_execute_sql_declaration_write(tool_config):
           executed.
         query (str): The BigQuery SQL query to be executed.
         credentials (Credentials): The credentials to use for the request.
-        config (BigQueryToolConfig): The configuration for the tool.
+        settings (BigQueryToolConfig): The settings for the tool.
         tool_context (ToolContext): The context for the tool.
 
     Returns:
@@ -322,7 +326,7 @@ async def test_execute_sql_declaration_write(tool_config):
 
 
 @pytest.mark.parametrize(
-    ("tool_config",),
+    ("tool_settings",),
     [
         pytest.param(
             BigQueryToolConfig(write_mode=WriteMode.PROTECTED),
@@ -331,14 +335,14 @@ async def test_execute_sql_declaration_write(tool_config):
     ],
 )
 @pytest.mark.asyncio
-async def test_execute_sql_declaration_protected_write(tool_config):
+async def test_execute_sql_declaration_protected_write(tool_settings):
   """Test BigQuery execute_sql tool declaration with protected writes enabled.
 
   This test verifies that the execute_sql tool declaration reflects the
   protected write capability.
   """
   tool_name = "execute_sql"
-  tool = await get_tool(tool_name, tool_config)
+  tool = await get_tool(tool_name, tool_settings)
   assert tool.name == tool_name
   assert tool.description == textwrap.dedent("""\
     Run a BigQuery or BigQuery ML SQL query in the project and return the result.
@@ -348,7 +352,7 @@ async def test_execute_sql_declaration_protected_write(tool_config):
           executed.
         query (str): The BigQuery SQL query to be executed.
         credentials (Credentials): The credentials to use for the request.
-        config (BigQueryToolConfig): The configuration for the tool.
+        settings (BigQueryToolConfig): The settings for the tool.
         tool_context (ToolContext): The context for the tool.
 
     Returns:
@@ -526,7 +530,7 @@ def test_execute_sql_select_stmt(write_mode):
   statement_type = "SELECT"
   query_result = [{"num": 123}]
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=write_mode)
+  tool_settings = BigQueryToolConfig(write_mode=write_mode)
   tool_context = mock.create_autospec(ToolContext, instance=True)
   tool_context.state.get.return_value = (
       "test-bq-session-id",
@@ -546,7 +550,9 @@ def test_execute_sql_select_stmt(write_mode):
     bq_client.query_and_wait.return_value = query_result
 
     # Test the tool
-    result = execute_sql(project, query, credentials, tool_config, tool_context)
+    result = execute_sql(
+        project, query, credentials, tool_settings, tool_context
+    )
     assert result == {"status": "SUCCESS", "rows": query_result}
 
 
@@ -582,7 +588,7 @@ def test_execute_sql_non_select_stmt_write_allowed(query, statement_type):
   project = "my_project"
   query_result = []
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=WriteMode.ALLOWED)
+  tool_settings = BigQueryToolConfig(write_mode=WriteMode.ALLOWED)
   tool_context = mock.create_autospec(ToolContext, instance=True)
 
   with mock.patch("google.cloud.bigquery.Client", autospec=False) as Client:
@@ -598,7 +604,9 @@ def test_execute_sql_non_select_stmt_write_allowed(query, statement_type):
     bq_client.query_and_wait.return_value = query_result
 
     # Test the tool
-    result = execute_sql(project, query, credentials, tool_config, tool_context)
+    result = execute_sql(
+        project, query, credentials, tool_settings, tool_context
+    )
     assert result == {"status": "SUCCESS", "rows": query_result}
 
 
@@ -634,7 +642,7 @@ def test_execute_sql_non_select_stmt_write_blocked(query, statement_type):
   project = "my_project"
   query_result = []
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
+  tool_settings = BigQueryToolConfig(write_mode=WriteMode.BLOCKED)
   tool_context = mock.create_autospec(ToolContext, instance=True)
 
   with mock.patch("google.cloud.bigquery.Client", autospec=False) as Client:
@@ -650,7 +658,9 @@ def test_execute_sql_non_select_stmt_write_blocked(query, statement_type):
     bq_client.query_and_wait.return_value = query_result
 
     # Test the tool
-    result = execute_sql(project, query, credentials, tool_config, tool_context)
+    result = execute_sql(
+        project, query, credentials, tool_settings, tool_context
+    )
     assert result == {
         "status": "ERROR",
         "error_details": "Read-only mode only supports SELECT statements.",
@@ -689,7 +699,7 @@ def test_execute_sql_non_select_stmt_write_protected(query, statement_type):
   project = "my_project"
   query_result = []
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=WriteMode.PROTECTED)
+  tool_settings = BigQueryToolConfig(write_mode=WriteMode.PROTECTED)
   tool_context = mock.create_autospec(ToolContext, instance=True)
   tool_context.state.get.return_value = (
       "test-bq-session-id",
@@ -710,7 +720,9 @@ def test_execute_sql_non_select_stmt_write_protected(query, statement_type):
     bq_client.query_and_wait.return_value = query_result
 
     # Test the tool
-    result = execute_sql(project, query, credentials, tool_config, tool_context)
+    result = execute_sql(
+        project, query, credentials, tool_settings, tool_context
+    )
     assert result == {"status": "SUCCESS", "rows": query_result}
 
 
@@ -752,7 +764,7 @@ def test_execute_sql_non_select_stmt_write_protected_persistent_target(
   project = "my_project"
   query_result = []
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=WriteMode.PROTECTED)
+  tool_settings = BigQueryToolConfig(write_mode=WriteMode.PROTECTED)
   tool_context = mock.create_autospec(ToolContext, instance=True)
   tool_context.state.get.return_value = (
       "test-bq-session-id",
@@ -773,7 +785,9 @@ def test_execute_sql_non_select_stmt_write_protected_persistent_target(
     bq_client.query_and_wait.return_value = query_result
 
     # Test the tool
-    result = execute_sql(project, query, credentials, tool_config, tool_context)
+    result = execute_sql(
+        project, query, credentials, tool_settings, tool_context
+    )
     assert result == {
         "status": "ERROR",
         "error_details": (
@@ -804,7 +818,7 @@ def test_execute_sql_no_default_auth(
   statement_type = "SELECT"
   query_result = [{"num": 123}]
   credentials = mock.create_autospec(Credentials, instance=True)
-  tool_config = BigQueryToolConfig(write_mode=write_mode)
+  tool_settings = BigQueryToolConfig(write_mode=write_mode)
   tool_context = mock.create_autospec(ToolContext, instance=True)
   tool_context.state.get.return_value = (
       "test-bq-session-id",
@@ -826,6 +840,146 @@ def test_execute_sql_no_default_auth(
   mock_query_and_wait.return_value = query_result
 
   # Test the tool worked without invoking default auth
-  result = execute_sql(project, query, credentials, tool_config, tool_context)
+  result = execute_sql(project, query, credentials, tool_settings, tool_context)
   assert result == {"status": "SUCCESS", "rows": query_result}
   mock_default_auth.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("query", "query_result", "tool_result_rows"),
+    [
+        pytest.param(
+            "SELECT [1,2,3] AS x",
+            [{"x": [1, 2, 3]}],
+            [{"x": [1, 2, 3]}],
+            id="ARRAY",
+        ),
+        pytest.param(
+            "SELECT TRUE AS x", [{"x": True}], [{"x": True}], id="BOOL"
+        ),
+        pytest.param(
+            "SELECT b'Hello World!' AS x",
+            [{"x": b"Hello World!"}],
+            [{"x": "b'Hello World!'"}],
+            id="BYTES",
+        ),
+        pytest.param(
+            "SELECT DATE '2025-07-21' AS x",
+            [{"x": datetime.date(2025, 7, 21)}],
+            [{"x": "2025-07-21"}],
+            id="DATE",
+        ),
+        pytest.param(
+            "SELECT DATETIME '2025-07-21 14:30:45' AS x",
+            [{"x": datetime.datetime(2025, 7, 21, 14, 30, 45)}],
+            [{"x": "2025-07-21 14:30:45"}],
+            id="DATETIME",
+        ),
+        pytest.param(
+            "SELECT ST_GEOGFROMTEXT('POINT(-122.21 47.48)') as x",
+            [{"x": "POINT(-122.21 47.48)"}],
+            [{"x": "POINT(-122.21 47.48)"}],
+            id="GEOGRAPHY",
+        ),
+        pytest.param(
+            "SELECT INTERVAL 10 DAY as x",
+            [{"x": dateutil.relativedelta.relativedelta(days=10)}],
+            [{"x": "relativedelta(days=+10)"}],
+            id="INTERVAL",
+        ),
+        pytest.param(
+            "SELECT JSON_OBJECT('name', 'Alice', 'age', 30) AS x",
+            [{"x": {"age": 30, "name": "Alice"}}],
+            [{"x": {"age": 30, "name": "Alice"}}],
+            id="JSON",
+        ),
+        pytest.param("SELECT 1 AS x", [{"x": 1}], [{"x": 1}], id="INT64"),
+        pytest.param(
+            "SELECT CAST(1.2 AS NUMERIC) AS x",
+            [{"x": decimal.Decimal("1.2")}],
+            [{"x": "1.2"}],
+            id="NUMERIC",
+        ),
+        pytest.param(
+            "SELECT CAST(1.2 AS BIGNUMERIC) AS x",
+            [{"x": decimal.Decimal("1.2")}],
+            [{"x": "1.2"}],
+            id="BIGNUMERIC",
+        ),
+        pytest.param(
+            "SELECT 1.23 AS x", [{"x": 1.23}], [{"x": 1.23}], id="FLOAT64"
+        ),
+        pytest.param(
+            "SELECT RANGE(DATE '2023-01-01', DATE '2023-01-31') as x",
+            [{
+                "x": {
+                    "start": datetime.date(2023, 1, 1),
+                    "end": datetime.date(2023, 1, 31),
+                }
+            }],
+            [{
+                "x": (
+                    "{'start': datetime.date(2023, 1, 1), 'end':"
+                    " datetime.date(2023, 1, 31)}"
+                )
+            }],
+            id="RANGE",
+        ),
+        pytest.param(
+            "SELECT 'abc' AS x", [{"x": "abc"}], [{"x": "abc"}], id="STRING"
+        ),
+        pytest.param(
+            "SELECT STRUCT('Alice' AS name, 30 AS age) as x",
+            [{"x": {"name": "Alice", "age": 30}}],
+            [{"x": {"name": "Alice", "age": 30}}],
+            id="STRUCT",
+        ),
+        pytest.param(
+            "SELECT TIME '10:30:45' as x",
+            [{"x": datetime.time(10, 30, 45)}],
+            [{"x": "10:30:45"}],
+            id="TIME",
+        ),
+        pytest.param(
+            "SELECT TIMESTAMP '2025-07-21 10:30:45-07:00' as x",
+            [{
+                "x": datetime.datetime(
+                    2025, 7, 21, 17, 30, 45, tzinfo=datetime.timezone.utc
+                )
+            }],
+            [{"x": "2025-07-21 17:30:45+00:00"}],
+            id="TIMESTAMP",
+        ),
+        pytest.param(
+            "SELECT NULL AS x", [{"x": None}], [{"x": None}], id="NULL"
+        ),
+    ],
+)
+@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch("google.cloud.bigquery.Client.query_and_wait", autospec=True)
+@mock.patch("google.cloud.bigquery.Client.query", autospec=True)
+def test_execute_sql_result_dtype(
+    mock_query, mock_query_and_wait, query, query_result, tool_result_rows
+):
+  """Test execute_sql tool invocation for various BigQuery data types.
+
+  See all the supported BigQuery data types at
+  https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types#data_type_list.
+  """
+  project = "my_project"
+  statement_type = "SELECT"
+  credentials = mock.create_autospec(Credentials, instance=True)
+  tool_settings = BigQueryToolConfig()
+  tool_context = mock.create_autospec(ToolContext, instance=True)
+
+  # Simulate the result of query API
+  query_job = mock.create_autospec(bigquery.QueryJob)
+  query_job.statement_type = statement_type
+  mock_query.return_value = query_job
+
+  # Simulate the result of query_and_wait API
+  mock_query_and_wait.return_value = query_result
+
+  # Test the tool worked without invoking default auth
+  result = execute_sql(project, query, credentials, tool_settings, tool_context)
+  assert result == {"status": "SUCCESS", "rows": tool_result_rows}

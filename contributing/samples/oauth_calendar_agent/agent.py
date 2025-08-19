@@ -19,15 +19,15 @@ from dotenv import load_dotenv
 from fastapi.openapi.models import OAuth2
 from fastapi.openapi.models import OAuthFlowAuthorizationCode
 from fastapi.openapi.models import OAuthFlows
-from google.adk import Agent
 from google.adk.agents.callback_context import CallbackContext
-from google.adk.auth import AuthConfig
-from google.adk.auth import AuthCredential
-from google.adk.auth import AuthCredentialTypes
-from google.adk.auth import OAuth2Auth
-from google.adk.tools import ToolContext
+from google.adk.agents.llm_agent import Agent
+from google.adk.auth.auth_credential import AuthCredential
+from google.adk.auth.auth_credential import AuthCredentialTypes
+from google.adk.auth.auth_credential import OAuth2Auth
+from google.adk.auth.auth_tool import AuthConfig
 from google.adk.tools.authenticated_function_tool import AuthenticatedFunctionTool
 from google.adk.tools.google_api_tool import CalendarToolset
+from google.adk.tools.tool_context import ToolContext
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
@@ -46,7 +46,8 @@ calendar_toolset = CalendarToolset(
     # google calendar tool by adding `calendar_events_list` in the filter list
     client_id=oauth_client_id,
     client_secret=oauth_client_secret,
-    tool_filter=["calendar_events_get"],
+    tool_filter=["calendar_events_get", "calendar_events_update"],
+    tool_name_prefix="google",
 )
 
 
@@ -125,7 +126,7 @@ root_agent = Agent(
 
       Scenario2:
       User want to know the details of one of the listed calendar events.
-      Use get_calendar_event to get the details of a calendar event.
+      Use google_calendar_events_get to get the details of a calendar event.
 
 
       Current user:
