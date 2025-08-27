@@ -18,17 +18,18 @@ uv run pytest -q ./tests/unittests/tools/test_tools_generative_call.py
 ```
 """
 
-from typing import Generator
-from typing import AsyncGenerator
-import time
 import asyncio
+import time
+from typing import AsyncGenerator
+from typing import Generator
 from unittest.mock import MagicMock
 
-from google.adk.agents.llm_agent import Agent
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.llm_agent import Agent
+from google.adk.agents.run_config import RunConfig
+from google.adk.agents.run_config import StreamingMode
 from google.adk.sessions.session import Session
 from google.adk.tools.function_tool import FunctionTool
-from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 import pytest
@@ -48,7 +49,7 @@ def generator_returning_none() -> Generator:
 
 def generator_yield_message_and_returning_none() -> Generator:
   """Function for testing with no return value."""
-  yield "wip"
+  yield 'wip'
   time.sleep(0.001)
   yield None
 
@@ -82,23 +83,23 @@ async def async_generator_function_for_testing_with_1_arg_and_tool_context(
 
 async def gen_a(arg1):
   """simple test generator for test multi-function calling"""
-  yield f"gen_a1:{arg1}"
+  yield f'gen_a1:{arg1}'
   await asyncio.sleep(0.001)
-  yield f"gen_a2:{arg1}"
+  yield f'gen_a2:{arg1}'
 
 
 async def gen_b(arg1):
-  yield f"gen_b1:{arg1}"
+  yield f'gen_b1:{arg1}'
   await asyncio.sleep(0.001)
-  yield f"gen_b2:{arg1}"
+  yield f'gen_b2:{arg1}'
 
 
 class AsyncCallableWith2ArgsAndNoToolContext:
-  """ async callable object with 2 args and no tool context."""
+  """async callable object with 2 args and no tool context."""
 
   def __init__(self):
-    self.__name__ = "Async callable name"
-    self.__doc__ = "Async callable doc"
+    self.__name__ = 'Async callable name'
+    self.__doc__ = 'Async callable doc'
 
   async def __call__(self, arg1, arg2):
     assert arg1
@@ -110,9 +111,15 @@ class AsyncCallableWith2ArgsAndNoToolContext:
 
 def test_init_generator_function():
   """Test that the FunctionTool is initialized correctly."""
-  tool = FunctionTool(generator_function_for_testing_with_1_arg_and_tool_context)
-  assert tool.name == "generator_function_for_testing_with_1_arg_and_tool_context"
-  assert tool.description == "Generator for testing with 1 arge and tool context."
+  tool = FunctionTool(
+      generator_function_for_testing_with_1_arg_and_tool_context
+  )
+  assert (
+      tool.name == 'generator_function_for_testing_with_1_arg_and_tool_context'
+  )
+  assert (
+      tool.description == 'Generator for testing with 1 arge and tool context.'
+  )
   assert tool.func == generator_function_for_testing_with_1_arg_and_tool_context
 
 
@@ -174,7 +181,7 @@ async def test_generator_yield_message_and_returning_none_with_streaming():
   tool = FunctionTool(generator_yield_message_and_returning_none)
   tool_context = MagicMock()
   tool_context.run_config = RunConfig(streaming_mode=StreamingMode.SSE)
-  expect_answers = ["wip", None]
+  expect_answers = ['wip', None]
   result = await tool.run_async(args={}, tool_context=tool_context)
   assert isinstance(result, Generator)
   i = 0
@@ -190,19 +197,27 @@ async def test_generator_yield_message_and_returning_none_with_streaming():
 @pytest.mark.asyncio
 async def test_generator_function_for_testing_with_1_arg_and_tool_context():
   """Test that the generator function that takes 1 arg returns with "value1" actually returning "value1" same as non generator function when without streaming"""
-  tool = FunctionTool(generator_function_for_testing_with_1_arg_and_tool_context)
-  result = await tool.run_async(args={"arg1": "value1"}, tool_context=MagicMock())
-  assert result == "value1"
+  tool = FunctionTool(
+      generator_function_for_testing_with_1_arg_and_tool_context
+  )
+  result = await tool.run_async(
+      args={'arg1': 'value1'}, tool_context=MagicMock()
+  )
+  assert result == 'value1'
 
 
 @pytest.mark.asyncio
 async def test_generator_function_for_testing_with_1_arg_and_tool_context_with_streaming():
   """Test that the generator function that takes 1 arg yields with "value1" actually yielding "value1" when with streaming."""
-  tool = FunctionTool(generator_function_for_testing_with_1_arg_and_tool_context)
+  tool = FunctionTool(
+      generator_function_for_testing_with_1_arg_and_tool_context
+  )
   tool_context = MagicMock()
   tool_context.run_config = RunConfig(streaming_mode=StreamingMode.SSE)
-  expect_answers = ["value1", "value1"]
-  result = await tool.run_async(args={"arg1": "value1"}, tool_context=tool_context)
+  expect_answers = ['value1', 'value1']
+  result = await tool.run_async(
+      args={'arg1': 'value1'}, tool_context=tool_context
+  )
   assert isinstance(result, Generator)
   i = 0
   last_ans = None
@@ -217,21 +232,33 @@ async def test_generator_function_for_testing_with_1_arg_and_tool_context_with_s
 @pytest.mark.asyncio
 async def test_generator_object_for_testing_with_2_arg_and_no_tool_context():
   """Test that the generator function that takes 1 arg returns with "value1" actually returning "value1" same as non generator function when without streaming"""
-  generator_object_for_testing_with_2_arg_and_no_tool_context = AsyncCallableWith2ArgsAndNoToolContext()
-  tool = FunctionTool(generator_object_for_testing_with_2_arg_and_no_tool_context)
-  result = await tool.run_async(args={"arg1": "value1", "arg2": "value1"}, tool_context=MagicMock())
-  assert result == "value1"
+  generator_object_for_testing_with_2_arg_and_no_tool_context = (
+      AsyncCallableWith2ArgsAndNoToolContext()
+  )
+  tool = FunctionTool(
+      generator_object_for_testing_with_2_arg_and_no_tool_context
+  )
+  result = await tool.run_async(
+      args={'arg1': 'value1', 'arg2': 'value1'}, tool_context=MagicMock()
+  )
+  assert result == 'value1'
 
 
 @pytest.mark.asyncio
 async def test_generator_object_for_testing_with_2_arg_and_no_tool_context_with_streaming():
   """Test that the generator function that takes 1 arg yields with "value1" actually yielding "value1" when with streaming."""
-  generator_object_for_testing_with_2_arg_and_no_tool_context = AsyncCallableWith2ArgsAndNoToolContext()
-  tool = FunctionTool(generator_object_for_testing_with_2_arg_and_no_tool_context)
+  generator_object_for_testing_with_2_arg_and_no_tool_context = (
+      AsyncCallableWith2ArgsAndNoToolContext()
+  )
+  tool = FunctionTool(
+      generator_object_for_testing_with_2_arg_and_no_tool_context
+  )
   tool_context = MagicMock()
   tool_context.run_config = RunConfig(streaming_mode=StreamingMode.SSE)
-  expect_answers = ["value1", "value2"]
-  result = await tool.run_async(args={"arg1": "value1", "arg2": "value2"}, tool_context=tool_context)
+  expect_answers = ['value1', 'value2']
+  result = await tool.run_async(
+      args={'arg1': 'value1', 'arg2': 'value2'}, tool_context=tool_context
+  )
   assert isinstance(result, AsyncGenerator)
   i = 0
   last_ans = None
@@ -269,9 +296,13 @@ async def test_call_generative_function_without_stream():
     time.sleep(0.001)
     yield x + 1
 
-  agent = Agent(name='root_agent', model=mock_model, tools=[increase_by_one_generator])
+  agent = Agent(
+      name='root_agent', model=mock_model, tools=[increase_by_one_generator]
+  )
   runner = testing_utils.InMemoryRunner(agent)
-  events = await runner.run_async("test", )
+  events = await runner.run_async(
+      'test',
+  )
   assert testing_utils.simplify_events(events) == [
       ('root_agent', function_call_1),
       ('root_agent', function_response_2),
@@ -310,9 +341,13 @@ async def test_call_generative_function_with_stream():
     time.sleep(0.001)
     yield x + 1
 
-  agent = Agent(name='root_agent', model=mock_model, tools=[increase_by_one_generator])
+  agent = Agent(
+      name='root_agent', model=mock_model, tools=[increase_by_one_generator]
+  )
   runner = testing_utils.InMemoryRunner(agent)
-  events = await runner.run_async('test', run_config=RunConfig(streaming_mode=StreamingMode.SSE))
+  events = await runner.run_async(
+      'test', run_config=RunConfig(streaming_mode=StreamingMode.SSE)
+  )
 
   assert testing_utils.simplify_events(events) == [
       ('root_agent', function_call_1),
@@ -324,29 +359,77 @@ async def test_call_generative_function_with_stream():
   ]
   assert function_called == 1
 
-#
-#
-# @pytest.mark.asyncio
-# async def test_call_two_generative_functions():
-#   """Test that the two generator functions in same time."""
-#   assert True
-#
-# #
-#
-# import asyncio
-#
-# responses = [
-#   'response1',
-#   'response2',
-#   'response3',
-#   'response4',
-# ]
-# function_called = 0
-# mock_model = testing_utils.MockModel.create(responses=responses)
-#
-# gen = mock_model.generate_content_async("aa")
-# async def main():
-#   async for item in gen:
-#     print(item)
-#
-# asyncio.run(main())
+
+@pytest.mark.asyncio
+async def test_parallel_call_generative_function_with_stream():
+
+  function_calls = [
+      types.Part.from_function_call(
+          name='increase_by_one_generator', args={'x': 1}
+      ),
+      types.Part.from_function_call(
+          name='decrease_by_one_generator', args={'x': 5}
+      ),
+  ]
+  function_response_1 = types.Part.from_function_response(
+      name='increase_by_one_generator', response={'result': 1}
+  )
+  function_response_2 = types.Part.from_function_response(
+      name='increase_by_one_generator', response={'result': 2}
+  )
+  function_response_3 = types.Part.from_function_response(
+      name='decrease_by_one_generator', response={'result': 5}
+  )
+  function_response_4 = types.Part.from_function_response(
+      name='decrease_by_one_generator', response={'result': 4}
+  )
+  responses = [
+      function_calls,
+      'response1',
+      'response2',
+      'response3',
+      'response4',
+  ]
+  function_called = 0
+  mock_model = testing_utils.MockModel.create(responses=responses)
+
+  def increase_by_one_generator(x: int) -> Generator:
+    """increase generator"""
+    nonlocal function_called
+    function_called += 1
+    time.sleep(0.003)
+    yield x
+    time.sleep(0.001)
+    yield x + 1
+
+  def decrease_by_one_generator(x: int) -> Generator:
+    """increase generator"""
+    nonlocal function_called
+    time.sleep(0.001)
+    function_called += 1
+    yield x
+    time.sleep(0.001)
+    yield x - 1
+
+  agent = Agent(
+      name='root_agent',
+      model=mock_model,
+      tools=[increase_by_one_generator, decrease_by_one_generator],
+  )
+  runner = testing_utils.InMemoryRunner(agent)
+  events = await runner.run_async(
+      'test', run_config=RunConfig(streaming_mode=StreamingMode.SSE)
+  )
+
+  assert testing_utils.simplify_events(events) == [
+      ('root_agent', function_calls),
+      ('root_agent', function_response_1),
+      ('root_agent', function_response_2),
+      ('root_agent', function_response_2),
+      ('root_agent', [function_response_2, function_response_3]),
+      ('root_agent', [function_response_2, function_response_4]),
+      ('root_agent', [function_response_2, function_response_4]),
+      ('root_agent', [function_response_2, function_response_4]),
+      ('root_agent', 'response1'),
+  ]
+  assert function_called == 2

@@ -22,8 +22,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
   from google.genai import types
 
-  from .invocation_context import InvocationContext
   from ..sessions.session import Session
+  from .invocation_context import InvocationContext
 
 
 class ReadonlyContext:
@@ -58,4 +58,3 @@ class ReadonlyContext:
   def session(self) -> Session:
     """The current session. READONLY field."""
     return self._invocation_context.session
-

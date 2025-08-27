@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import inspect
 from typing import Any
-from typing import Iterator
 from typing import AsyncIterator
 from typing import Callable
+from typing import Iterator
 from typing import Optional
 
 from google.genai import types
@@ -119,16 +119,22 @@ You could retry calling this tool, but it is IMPORTANT for you to provide all th
 
     elif inspect.isgenerator(func_result) or isinstance(func_result, Iterator):
       if tool_context.run_config.streaming_mode == StreamingMode.SSE:
-        return func_result  # if streaming_mode: SSE return just generator object.
+        return (
+            func_result  # if streaming_mode: SSE return just generator object.
+        )
       res = None
       for res in func_result:
         if inspect.isawaitable(res):
           res = await res
       result = res
 
-    elif inspect.isasyncgen(func_result) or isinstance(func_result, AsyncIterator):
+    elif inspect.isasyncgen(func_result) or isinstance(
+        func_result, AsyncIterator
+    ):
       if tool_context.run_config.streaming_mode == StreamingMode.SSE:
-        return func_result  # if streaming_mode: SSE return just generator object.
+        return (
+            func_result  # if streaming_mode: SSE return just generator object.
+        )
       res = None
       async for res in func_result:
         if inspect.isawaitable(res):

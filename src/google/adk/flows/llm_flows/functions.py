@@ -24,10 +24,10 @@ from typing import Any
 from typing import AsyncGenerator
 from typing import AsyncIterator
 from typing import cast
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import Iterator
 from typing import TYPE_CHECKING
 import uuid
 
@@ -35,8 +35,8 @@ from google.genai import types
 from nltk.sem.chat80 import continent
 
 from ...agents.active_streaming_tool import ActiveStreamingTool
-from ...agents.run_config import StreamingMode
 from ...agents.invocation_context import InvocationContext
+from ...agents.run_config import StreamingMode
 from ...auth.auth_tool import AuthToolArguments
 from ...events.event import Event
 from ...events.event_actions import EventActions
@@ -161,25 +161,27 @@ async def handle_function_calls_async(
     return
 
   function_call_async_gens = [
-    _execute_single_function_call_async_gen(
-      invocation_context, function_call, tools_dict, agent
-    )
-    for function_call in filtered_calls
+      _execute_single_function_call_async_gen(
+          invocation_context, function_call, tools_dict, agent
+      )
+      for function_call in filtered_calls
   ]
 
   result_events: List[Optional[Event]] = [None] * len(function_call_async_gens)
   function_response_events = []
-  async for idx, event in _concat_function_call_generators(function_call_async_gens):
+  async for idx, event in _concat_function_call_generators(
+      function_call_async_gens
+  ):
     result_events[idx] = event
     function_response_events = [
         event for event in result_events if event is not None
     ]
     if function_response_events:
-        merged_event = merge_parallel_function_response_events(
-            function_response_events
-        )
-        if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
-          yield merged_event
+      merged_event = merge_parallel_function_response_events(
+          function_response_events
+      )
+      if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+        yield merged_event
 
   if not function_response_events:
     yield None
@@ -198,7 +200,7 @@ async def handle_function_calls_async(
 
 
 async def _concat_function_call_generators(
-        gens: List[AsyncGenerator[Any]],
+    gens: List[AsyncGenerator[Any]],
 ) -> AsyncIterator[tuple[int, Any]]:
   _SENTINEL = object()
   q: asyncio.Queue[tuple[str, int, Any]] = asyncio.Queue()
@@ -208,34 +210,34 @@ async def _concat_function_call_generators(
   async def __pump(idx: int, agen_: AsyncIterator[Any]):
     try:
       async for x in agen_:
-        await q.put(("ITEM", idx, x))
+        await q.put(('ITEM', idx, x))
     except Exception as e:
-      await q.put(("EXC", idx, e))
+      await q.put(('EXC', idx, e))
     finally:
-      aclose = getattr(agen_, "aclose", None)
+      aclose = getattr(agen_, 'aclose', None)
       if callable(aclose):
         try:
           await aclose()
         except Exception:  # noqa: ignore exception when task canceled.
           pass
 
-      await q.put(("END", idx, _SENTINEL))
+      await q.put(('END', idx, _SENTINEL))
 
   tasks = [asyncio.create_task(__pump(i, agen)) for i, agen in enumerate(gens)]
   finished = 0
   try:
     while finished < n:
       kind, i, payload = await q.get()
-      if kind == "ITEM":
+      if kind == 'ITEM':
         yield i, payload
 
-      elif kind == "EXC":
+      elif kind == 'EXC':
         for t in tasks:
           t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         raise payload
 
-      elif kind == "END":
+      elif kind == 'END':
         finished += 1
   finally:
     for t in tasks:
@@ -290,25 +292,35 @@ async def _execute_single_function_call_async_gen(
         function_response = await __call_tool_async(
             tool, args=function_args, tool_context=tool_context
         )
-        if inspect.isasyncgen(function_response) or isinstance(function_response, AsyncIterator):
+        if inspect.isasyncgen(function_response) or isinstance(
+            function_response, AsyncIterator
+        ):
           res = None
           async for res in function_response:
             if inspect.isawaitable(res):
               res = await res
-            if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+            if (
+                invocation_context.run_config.streaming_mode
+                == StreamingMode.SSE
+            ):
               function_response_event = __build_response_event(
-                tool, res, tool_context, invocation_context
+                  tool, res, tool_context, invocation_context
               )
               yield function_response_event
           function_response = res
-        elif inspect.isgenerator(function_response) or isinstance(function_response, Iterator):
+        elif inspect.isgenerator(function_response) or isinstance(
+            function_response, Iterator
+        ):
           res = None
           for res in function_response:
             if inspect.isawaitable(res):
               res = await res
-            if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+            if (
+                invocation_context.run_config.streaming_mode
+                == StreamingMode.SSE
+            ):
               function_response_event = __build_response_event(
-                tool, res, tool_context, invocation_context
+                  tool, res, tool_context, invocation_context
               )
               yield function_response_event
           function_response = res

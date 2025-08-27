@@ -15,6 +15,12 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator as ABCAsyncGenerator
+from collections.abc import AsyncIterable as ABCAsyncIterable
+from collections.abc import AsyncIterator as ABCAsyncIterator
+from collections.abc import Generator as ABCGenerator
+from collections.abc import Iterable as ABCIterable
+from collections.abc import Iterator as ABCIterator
 import inspect
 import logging
 import types as typing_types
@@ -25,14 +31,6 @@ from typing import get_args
 from typing import get_origin
 from typing import Literal
 from typing import Union
-from collections.abc import (
-  Generator as ABCGenerator,
-  Iterator as ABCIterator,
-  Iterable as ABCIterable,
-  AsyncGenerator as ABCAsyncGenerator,
-  AsyncIterator as ABCAsyncIterator,
-  AsyncIterable as ABCAsyncIterable,
-)
 
 from google.genai import types
 import pydantic
@@ -292,9 +290,13 @@ def _parse_schema_from_parameter(
       schema.type = types.Type.ARRAY
       item_ann = args[0] if args else Any
       schema.items = _parse_schema_from_parameter(
-        variant,
-        inspect.Parameter('item', inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=item_ann),
-        func_name,
+          variant,
+          inspect.Parameter(
+              'item',
+              inspect.Parameter.POSITIONAL_OR_KEYWORD,
+              annotation=item_ann,
+          ),
+          func_name,
       )
       if param.default is not inspect.Parameter.empty:
         if not _is_default_value_compatible(param.default, param.annotation):
@@ -306,9 +308,13 @@ def _parse_schema_from_parameter(
       schema.type = types.Type.ARRAY
       item_ann = args[0] if args else Any
       schema.items = _parse_schema_from_parameter(
-        variant,
-        inspect.Parameter('item', inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=item_ann),
-        func_name,
+          variant,
+          inspect.Parameter(
+              'item',
+              inspect.Parameter.POSITIONAL_OR_KEYWORD,
+              annotation=item_ann,
+          ),
+          func_name,
       )
       if param.default is not inspect.Parameter.empty:
         if not _is_default_value_compatible(param.default, param.annotation):
