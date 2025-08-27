@@ -358,6 +358,8 @@ async def test_call_generative_function_with_stream():
       ('root_agent', 'response1'),
   ]
   assert function_called == 1
+  assert False
+
 
 
 @pytest.mark.asyncio

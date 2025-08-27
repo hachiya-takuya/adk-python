@@ -575,7 +575,7 @@ class BaseLlmFlow(ABC):
     # if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
     #
     # else:
-    if function_response_event_agen := functions.handle_function_calls_async(
+    if function_response_event_agen := functions.handle_function_calls_async_gen(
         invocation_context, function_call_event, llm_request.tools_dict
     ):
       function_response_event = None
@@ -584,9 +584,11 @@ class BaseLlmFlow(ABC):
             invocation_context, function_response_event
         )
         if auth_event:
+          print("test1: auth_event\n", auth_event, "\n===========================================")  # todo
           yield auth_event
 
         # Always yield the function response event first
+        print("test2: function_response_event\n", function_response_event, "\n===========================================")  # todo
         yield function_response_event
 
         # Check if this is a set_model_response function response
@@ -599,6 +601,7 @@ class BaseLlmFlow(ABC):
                   invocation_context, json_response
               )
           )
+          print("test3: final_event\n", final_event, "\n===========================================")  # todo
           yield final_event
       if function_response_event:
         transfer_to_agent = function_response_event.actions.transfer_to_agent
@@ -610,6 +613,7 @@ class BaseLlmFlow(ABC):
               agent_to_run.run_async(invocation_context)
           ) as agen:
             async for event in agen:
+              print("test4: agent_to_run_event\n", agent_to_run, "\n===========================================")
               yield event
 
   def _get_agent_to_run(
