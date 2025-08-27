@@ -217,12 +217,15 @@ class InMemoryRunner:
         )
     )
 
-  async def run_async(self, new_message: types.ContentUnion) -> list[Event]:
+  async def run_async(
+      self, new_message: types.ContentUnion, run_config: RunConfig = None
+  ) -> list[Event]:
     events = []
     async for event in self.runner.run_async(
         user_id=self.session.user_id,
         session_id=self.session.id,
         new_message=get_user_content(new_message),
+        run_config=run_config or RunConfig(),
     ):
       events.append(event)
     return events

@@ -20,18 +20,23 @@ import asyncio
 import copy
 import inspect
 import logging
-import threading
 from typing import Any
 from typing import AsyncGenerator
+from typing import AsyncIterator
 from typing import cast
+from typing import Iterator
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TYPE_CHECKING
 import uuid
 
 from google.genai import types
+from nltk.sem.chat80 import continent
 
 from ...agents.active_streaming_tool import ActiveStreamingTool
 from ...agents.invocation_context import InvocationContext
+from ...agents.run_config import StreamingMode
 from ...auth.auth_tool import AuthToolArguments
 from ...events.event import Event
 from ...events.event_actions import EventActions
@@ -135,13 +140,14 @@ async def handle_function_calls_async(
     function_call_event: Event,
     tools_dict: dict[str, BaseTool],
     filters: Optional[set[str]] = None,
-) -> Optional[Event]:
+) -> AsyncGenerator[Optional[Event]]:
   """Calls the functions and returns the function response event."""
   from ...agents.llm_agent import LlmAgent
 
   agent = invocation_context.agent
   if not isinstance(agent, LlmAgent):
-    return None
+    yield None
+    return
 
   function_calls = function_call_event.get_function_calls()
 
@@ -151,35 +157,35 @@ async def handle_function_calls_async(
   ]
 
   if not filtered_calls:
-    return None
+    yield None
+    return
 
-  # Create tasks for parallel execution
-  tasks = [
-      asyncio.create_task(
-          _execute_single_function_call_async(
-              invocation_context,
-              function_call,
-              tools_dict,
-              agent,
-          )
+  function_call_async_gens = [
+      _execute_single_function_call_async_gen(
+          invocation_context, function_call, tools_dict, agent
       )
       for function_call in filtered_calls
   ]
 
-  # Wait for all tasks to complete
-  function_response_events = await asyncio.gather(*tasks)
-
-  # Filter out None results
-  function_response_events = [
-      event for event in function_response_events if event is not None
-  ]
+  result_events: List[Optional[Event]] = [None] * len(function_call_async_gens)
+  function_response_events = []
+  async for idx, event in _concat_function_call_generators(
+      function_call_async_gens
+  ):
+    result_events[idx] = event
+    function_response_events = [
+        event for event in result_events if event is not None
+    ]
+    if function_response_events:
+      merged_event = merge_parallel_function_response_events(
+          function_response_events
+      )
+      if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+        yield merged_event
 
   if not function_response_events:
-    return None
-
-  merged_event = merge_parallel_function_response_events(
-      function_response_events
-  )
+    yield None
+    return
 
   if len(function_response_events) > 1:
     # this is needed for debug traces of parallel calls
@@ -190,15 +196,61 @@ async def handle_function_calls_async(
           response_event_id=merged_event.id,
           function_response_event=merged_event,
       )
-  return merged_event
+  yield merged_event
 
 
-async def _execute_single_function_call_async(
+async def _concat_function_call_generators(
+    gens: List[AsyncGenerator[Any]],
+) -> AsyncIterator[tuple[int, Any]]:
+  _SENTINEL = object()
+  q: asyncio.Queue[tuple[str, int, Any]] = asyncio.Queue()
+  gens = list(gens)
+  n = len(gens)
+
+  async def __pump(idx: int, agen_: AsyncIterator[Any]):
+    try:
+      async for x in agen_:
+        await q.put(('ITEM', idx, x))
+    except Exception as e:
+      await q.put(('EXC', idx, e))
+    finally:
+      aclose = getattr(agen_, 'aclose', None)
+      if callable(aclose):
+        try:
+          await aclose()
+        except Exception:  # noqa: ignore exception when task canceled.
+          pass
+
+      await q.put(('END', idx, _SENTINEL))
+
+  tasks = [asyncio.create_task(__pump(i, agen)) for i, agen in enumerate(gens)]
+  finished = 0
+  try:
+    while finished < n:
+      kind, i, payload = await q.get()
+      if kind == 'ITEM':
+        yield i, payload
+
+      elif kind == 'EXC':
+        for t in tasks:
+          t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise payload
+
+      elif kind == 'END':
+        finished += 1
+  finally:
+    for t in tasks:
+      t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _execute_single_function_call_async_gen(
     invocation_context: InvocationContext,
     function_call: types.FunctionCall,
     tools_dict: dict[str, BaseTool],
     agent: LlmAgent,
-) -> Optional[Event]:
+) -> AsyncGenerator[Optional[Event]]:
   """Execute a single function call with thread safety for state modifications."""
   tool, tool_context = _get_tool_and_context(
       invocation_context,
@@ -240,6 +292,39 @@ async def _execute_single_function_call_async(
         function_response = await __call_tool_async(
             tool, args=function_args, tool_context=tool_context
         )
+        if inspect.isasyncgen(function_response) or isinstance(
+            function_response, AsyncIterator
+        ):
+          res = None
+          async for res in function_response:
+            if inspect.isawaitable(res):
+              res = await res
+            if (
+                invocation_context.run_config.streaming_mode
+                == StreamingMode.SSE
+            ):
+              function_response_event = __build_response_event(
+                  tool, res, tool_context, invocation_context
+              )
+              yield function_response_event
+          function_response = res
+        elif inspect.isgenerator(function_response) or isinstance(
+            function_response, Iterator
+        ):
+          res = None
+          for res in function_response:
+            if inspect.isawaitable(res):
+              res = await res
+            if (
+                invocation_context.run_config.streaming_mode
+                == StreamingMode.SSE
+            ):
+              function_response_event = __build_response_event(
+                  tool, res, tool_context, invocation_context
+              )
+              yield function_response_event
+          function_response = res
+
       except Exception as tool_error:
         error_response = (
             await invocation_context.plugin_manager.run_on_tool_error_callback(
@@ -289,7 +374,8 @@ async def _execute_single_function_call_async(
       # Allow long running function to return None to not provide function
       # response.
       if not function_response:
-        return None
+        yield None
+        return
 
     # Note: State deltas are not applied here - they are collected in
     # tool_context.actions.state_delta and applied later when the session
@@ -304,7 +390,7 @@ async def _execute_single_function_call_async(
         args=function_args,
         function_response_event=function_response_event,
     )
-    return function_response_event
+    yield function_response_event
 
 
 async def handle_function_calls_live(
