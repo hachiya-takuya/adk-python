@@ -199,6 +199,7 @@ async def handle_function_calls_async_gen(
           function_response_events
       )
       if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+        print("test1.1: merged_event\n", merged_event, "\n===========================================")  # todo
         yield merged_event
 
   if not function_response_events:
@@ -214,6 +215,7 @@ async def handle_function_calls_async_gen(
           response_event_id=merged_event.id,
           function_response_event=merged_event,
       )
+  print("test1.2: merged_event\n", merged_event, "\n===========================================")  # todo
   yield merged_event
 
 
