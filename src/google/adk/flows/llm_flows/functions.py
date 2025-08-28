@@ -185,6 +185,7 @@ async def handle_function_calls_async_gen(
       for function_call in filtered_calls
   ]
 
+  merged_event = None
   result_events: List[Optional[Event]] = [None] * len(function_call_async_gens)
   function_response_events = []
   async for idx, event in _concat_function_call_generators(
@@ -199,8 +200,9 @@ async def handle_function_calls_async_gen(
           function_response_events
       )
       if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
-        print("test1.1: merged_event\n", merged_event, "\n===========================================")  # todo
         yield merged_event
+  if invocation_context.run_config.streaming_mode != StreamingMode.SSE:
+    yield merged_event
 
   if not function_response_events:
     yield None
@@ -215,7 +217,6 @@ async def handle_function_calls_async_gen(
           response_event_id=merged_event.id,
           function_response_event=merged_event,
       )
-  print("test1.2: merged_event JUST PRINT ONLY!!!\n", merged_event, "\n===========================================")  # todo
 
 
 async def _concat_function_call_generators(

@@ -584,11 +584,9 @@ class BaseLlmFlow(ABC):
             invocation_context, function_response_event
         )
         if auth_event:
-          print("test1: auth_event\n", auth_event, "\n===========================================")  # todo
           yield auth_event
 
         # Always yield the function response event first
-        print("test2: function_response_event\n", function_response_event, "\n===========================================")  # todo
         yield function_response_event
 
         # Check if this is a set_model_response function response
@@ -601,9 +599,7 @@ class BaseLlmFlow(ABC):
                   invocation_context, json_response
               )
           )
-          print("test3: final_event\n", final_event, "\n===========================================")  # todo
           yield final_event
-      print("test3.5: End of generation", "\n"*3)
       if function_response_event:
         transfer_to_agent = function_response_event.actions.transfer_to_agent
         if transfer_to_agent:

@@ -303,6 +303,7 @@ async def test_call_generative_function_without_stream():
   events = await runner.run_async(
       'test',
   )
+
   assert testing_utils.simplify_events(events) == [
       ('root_agent', function_call_1),
       ('root_agent', function_response_2),
@@ -354,12 +355,9 @@ async def test_call_generative_function_with_stream():
       ('root_agent', function_response_1),
       ('root_agent', function_response_2),
       ('root_agent', function_response_2),
-      ('root_agent', function_response_2),
       ('root_agent', 'response1'),
   ]
   assert function_called == 1
-  assert False
-
 
 
 @pytest.mark.asyncio
@@ -422,6 +420,10 @@ async def test_parallel_call_generative_function_with_stream():
   events = await runner.run_async(
       'test', run_config=RunConfig(streaming_mode=StreamingMode.SSE)
   )
+  for event in events:
+    print('-' * 50)
+    print(event)
+    print('-' * 50)
 
   assert testing_utils.simplify_events(events) == [
       ('root_agent', function_calls),
@@ -429,7 +431,6 @@ async def test_parallel_call_generative_function_with_stream():
       ('root_agent', function_response_2),
       ('root_agent', function_response_2),
       ('root_agent', [function_response_2, function_response_3]),
-      ('root_agent', [function_response_2, function_response_4]),
       ('root_agent', [function_response_2, function_response_4]),
       ('root_agent', [function_response_2, function_response_4]),
       ('root_agent', 'response1'),
