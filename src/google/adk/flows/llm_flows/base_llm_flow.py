@@ -603,6 +603,7 @@ class BaseLlmFlow(ABC):
           )
           print("test3: final_event\n", final_event, "\n===========================================")  # todo
           yield final_event
+      print("test3.5: End of generation", "\n"*3)
       if function_response_event:
         transfer_to_agent = function_response_event.actions.transfer_to_agent
         if transfer_to_agent:
