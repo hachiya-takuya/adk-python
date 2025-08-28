@@ -632,7 +632,7 @@ class BaseLlmFlow(ABC):
     # if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
     #
     # else:
-    if function_response_event_agen := functions.handle_function_calls_async(
+    if function_response_event_agen := functions.handle_function_calls_async_gen(
         invocation_context, function_call_event, llm_request.tools_dict
     ):
       function_response_event = None
