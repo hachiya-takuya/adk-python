@@ -215,8 +215,7 @@ async def handle_function_calls_async_gen(
           response_event_id=merged_event.id,
           function_response_event=merged_event,
       )
-  print("test1.2: merged_event\n", merged_event, "\n===========================================")  # todo
-  yield merged_event
+  print("test1.2: merged_event JUST PRINT ONLY!!!\n", merged_event, "\n===========================================")  # todo
 
 
 async def _concat_function_call_generators(
