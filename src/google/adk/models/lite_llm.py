@@ -250,12 +250,16 @@ async def _get_content(
     ):
       base64_string = base64.b64encode(part.inline_data.data).decode("utf-8")
       data_uri = f"data:{part.inline_data.mime_type};base64,{base64_string}"
-      if custom_llm_provider in ["openai", "azure"]:
+      if custom_llm_provider in ["openai"]:
         open_ai_file_object = await litellm.acreate_file(
             file=part.inline_data.data,
             purpose="assistants",
             custom_llm_provider=custom_llm_provider  # type: ignore
         )
+      elif custom_llm_provider in ["azure"]:
+        open_ai_file_object = {
+            "display_name": part.inline_data.display_name
+        }  # TMP: for AZURE cannot recive file.
       else:
           open_ai_file_object = None
 
@@ -291,10 +295,17 @@ async def _get_content(
           or part.inline_data.mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
       ):
         format_type = part.inline_data.mime_type
-        if open_ai_file_object:
+        if custom_llm_provider in ["openai"]:
             content_objects.append({
                 "type": "file",
-                "file": {"file_id": open_ai_file_object.id, "format": format_type},
+                "file": {
+                    "file_id": open_ai_file_object.id
+                },
+            })
+        elif custom_llm_provider in ["azure"]:
+            content_objects.append({
+                "type": "text",
+                "text": f"<attached_file> {open_ai_file_object['display_name']} </attached_file>",
             })
         else:
           content_objects.append({
