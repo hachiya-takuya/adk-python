@@ -247,6 +247,8 @@ async def handle_function_calls_async_gen(
           tools_dict,
           agent,
           tool_confirmation_dict[function_call.id]
+          if tool_confirmation_dict
+          else None,
       )
       for function_call in filtered_calls
   ]
