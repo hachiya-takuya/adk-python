@@ -428,7 +428,7 @@ def _function_declaration_to_tool_param(
       },
   }
 
-  if function_declaration.parameters.required:
+  if function_declaration.parameters and function_declaration.parameters.required:
     tool_params["function"]["parameters"][
         "required"
     ] = function_declaration.parameters.required
