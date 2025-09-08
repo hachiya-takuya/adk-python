@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from typing import Any
 from typing import AsyncIterator
 from typing import Callable
@@ -28,7 +29,10 @@ from ..agents.run_config import StreamingMode
 from ..utils.context_utils import Aclosing
 from ._automatic_function_calling_util import build_function_declaration
 from .base_tool import BaseTool
+from .tool_confirmation import ToolConfirmation
 from .tool_context import ToolContext
+
+logger = logging.getLogger('google_adk.' + __name__)
 
 
 class FunctionTool(BaseTool):
@@ -38,8 +42,15 @@ class FunctionTool(BaseTool):
     func: The function to wrap.
   """
 
-  def __init__(self, func: Callable[..., Any]):
-    """Extract metadata from a callable object."""
+  def __init__(
+      self, func: Callable[..., Any], *, require_confirmation: bool = False
+  ):
+    """Initializes the FunctionTool. Extracts metadata from a callable object.
+
+    Args:
+      func: The function to wrap.
+      require_confirmation: Whether the tool call requires user confirmation.
+    """
     name = ''
     doc = ''
     # Handle different types of callables
@@ -64,6 +75,7 @@ class FunctionTool(BaseTool):
     super().__init__(name=name, description=doc)
     self.func = func
     self._ignore_params = ['tool_context', 'input_stream']
+    self._require_confirmation = require_confirmation
 
   @override
   def _get_declaration(self) -> Optional[types.FunctionDeclaration]:
@@ -108,6 +120,29 @@ class FunctionTool(BaseTool):
 {missing_mandatory_args_str}
 You could retry calling this tool, but it is IMPORTANT for you to provide all the mandatory parameters."""
       return {'error': error_str}
+
+    if self._require_confirmation:
+      if not tool_context.tool_confirmation:
+        args_to_show = args_to_call.copy()
+        if 'tool_context' in args_to_show:
+          args_to_show.pop('tool_context')
+
+        tool_context.request_confirmation(
+            hint=(
+                f'Please approve or reject the tool call {self.name}() by'
+                ' responding with a FunctionResponse with an expected'
+                ' ToolConfirmation payload.'
+            ),
+        )
+        return {
+            'error': (
+                'This tool call requires confirmation, please approve or'
+                ' reject.'
+            )
+        }
+      else:
+        if not tool_context.tool_confirmation.confirmed:
+          return {'error': 'This tool call is rejected.'}
 
     # Functions are callable objects, but not all callable objects are functions
     # checking coroutine function is not enough. We also need to check whether
@@ -165,6 +200,8 @@ You could retry calling this tool, but it is IMPORTANT for you to provide all th
       ].stream
     if 'tool_context' in signature.parameters:
       args_to_call['tool_context'] = tool_context
+
+    # TODO: support tool confirmation for live mode.
     async with Aclosing(self.func(**args_to_call)) as agen:
       async for item in agen:
         yield item
