@@ -152,8 +152,7 @@ def _safe_json_serialize(obj) -> str:
 
 
 async def _content_to_message_param(
-    content: types.Content,
-    custom_llm_provider: str = None
+    content: types.Content, custom_llm_provider: str = None
 ) -> Union[Message, list[Message]]:
   """Converts a types.Content to a litellm Message or list of Messages.
 
@@ -182,7 +181,9 @@ async def _content_to_message_param(
 
   # Handle user or assistant messages
   role = _to_litellm_role(content.role)
-  message_content = await _get_content(content.parts, custom_llm_provider) or None
+  message_content = (
+      await _get_content(content.parts, custom_llm_provider) or None
+  )
 
   if role == "user":
     return ChatCompletionUserMessage(role="user", content=message_content)
@@ -222,8 +223,7 @@ async def _content_to_message_param(
 
 
 async def _get_content(
-    parts: Iterable[types.Part],
-    custom_llm_provider: str = None
+    parts: Iterable[types.Part], custom_llm_provider: str = None
 ) -> Union[OpenAIMessageContent, str]:
   """Converts a list of parts to litellm content.
 
@@ -254,14 +254,14 @@ async def _get_content(
         open_ai_file_object = await litellm.acreate_file(
             file=part.inline_data.data,
             purpose="assistants",
-            custom_llm_provider=custom_llm_provider  # type: ignore
+            custom_llm_provider=custom_llm_provider,  # type: ignore
         )
       elif custom_llm_provider in ["azure"]:
         open_ai_file_object = {
             "display_name": part.inline_data.display_name
         }  # TMP: for AZURE cannot recive file.
       else:
-          open_ai_file_object = None
+        open_ai_file_object = None
 
       if part.inline_data.mime_type.startswith("image"):
         # Use full MIME type (e.g., "image/png") for providers that validate it
@@ -291,22 +291,25 @@ async def _get_content(
           or part.inline_data.mime_type == "application/json"
           or part.inline_data.mime_type == "application/x-sh"
           or part.inline_data.mime_type == "application/typescript"
-          or part.inline_data.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          or part.inline_data.mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          or part.inline_data.mime_type
+          == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          or part.inline_data.mime_type
+          == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
       ):
         format_type = part.inline_data.mime_type
         if custom_llm_provider in ["openai"]:
-            content_objects.append({
-                "type": "file",
-                "file": {
-                    "file_id": open_ai_file_object.id
-                },
-            })
+          content_objects.append({
+              "type": "file",
+              "file": {"file_id": open_ai_file_object.id},
+          })
         elif custom_llm_provider in ["azure"]:
-            content_objects.append({
-                "type": "text",
-                "text": f"<attached_file> {open_ai_file_object['display_name']} </attached_file>",
-            })
+          content_objects.append({
+              "type": "text",
+              "text": (
+                  "<attached_file>"
+                  f" {open_ai_file_object['display_name']} </attached_file>"
+              ),
+          })
         else:
           content_objects.append({
               "type": "file",
@@ -572,20 +575,22 @@ async def _get_completion_inputs(
   """
   # 0. check custom_llm_provider
   if llm_request.model is None:
-      custom_llm_provider = "UNK"
+    custom_llm_provider = "UNK"
   elif "gemini" in llm_request.model:
-      custom_llm_provider = "vertex_ai"
+    custom_llm_provider = "vertex_ai"
   elif "azure" in llm_request.model:
-      custom_llm_provider = "azure"
+    custom_llm_provider = "azure"
   elif "openai" in llm_request.model:
-      custom_llm_provider = "openai"
+    custom_llm_provider = "openai"
   else:
-      custom_llm_provider = "UNK"
+    custom_llm_provider = "UNK"
 
   # 1. Construct messages
   messages: List[Message] = []
   for content in llm_request.contents or []:
-    message_param_or_list = await _content_to_message_param(content, custom_llm_provider)
+    message_param_or_list = await _content_to_message_param(
+        content, custom_llm_provider
+    )
     if isinstance(message_param_or_list, list):
       messages.extend(message_param_or_list)
     elif message_param_or_list:  # Ensure it's not None before appending
