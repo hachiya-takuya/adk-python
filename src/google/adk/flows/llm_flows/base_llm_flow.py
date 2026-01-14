@@ -718,7 +718,9 @@ class BaseLlmFlow(ABC):
           agent_to_run = self._get_agent_to_run(
               invocation_context, transfer_to_agent
           )
-          async with Aclosing(agent_to_run.run_async(invocation_context)) as agen:
+          async with Aclosing(
+              agent_to_run.run_async(invocation_context)
+          ) as agen:
             async for event in agen:
               yield event
 

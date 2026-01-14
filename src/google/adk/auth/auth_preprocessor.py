@@ -125,7 +125,9 @@ class _AuthLlmRequestProcessor(BaseLlmRequestProcessor):
               # auth response would be a dict keyed by function call id
               tools_to_resume,
           ):
-            async for function_response_event in function_response_event_async_gen:
+            async for (
+                function_response_event
+            ) in function_response_event_async_gen:
               yield function_response_event
           return
       return

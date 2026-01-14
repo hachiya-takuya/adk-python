@@ -229,7 +229,7 @@ async def handle_function_call_list_async_gen(
     return
 
   # Create tasks for parallel execution
-  function_call_async_gens  = [
+  function_call_async_gens = [
       _execute_single_function_call_async_gen(
           invocation_context,
           function_call,
@@ -296,10 +296,7 @@ async def _concat_function_call_generators(
 
       await q.put(('END', idx, _SENTINEL))
 
-  tasks = [
-    asyncio.create_task(__pump(i, agen))
-    for i, agen in enumerate(gens)
-  ]
+  tasks = [asyncio.create_task(__pump(i, agen)) for i, agen in enumerate(gens)]
   finished = 0
   try:
     while finished < n:

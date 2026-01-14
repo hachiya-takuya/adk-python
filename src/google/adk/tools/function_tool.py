@@ -219,7 +219,10 @@ You could retry calling this tool, but it is IMPORTANT for you to provide all th
     return await self._invoke_callable(self.func, args_to_call, tool_context)
 
   async def _invoke_callable(
-      self, target: Callable[..., Any], args_to_call: dict[str, Any], tool_context: ToolContext
+      self,
+      target: Callable[..., Any],
+      args_to_call: dict[str, Any],
+      tool_context: ToolContext,
   ) -> Any:
     """Invokes a callable, handling both sync and async cases."""
 
@@ -231,14 +234,18 @@ You could retry calling this tool, but it is IMPORTANT for you to provide all th
         and inspect.iscoroutinefunction(target.__call__)
     )
     unwrapped = inspect.unwrap(target)
-    call_attr = getattr(unwrapped, "__call__", None)
+    call_attr = getattr(unwrapped, '__call__', None)
 
-    is_generator = (inspect.isgeneratorfunction(target)
-                    or inspect.isgeneratorfunction(unwrapped)
-                    or inspect.isgeneratorfunction(call_attr))
-    is_asyncgen = (inspect.isasyncgenfunction(target)
-                   or inspect.isasyncgenfunction(unwrapped)
-                   or inspect.isasyncgenfunction(call_attr))
+    is_generator = (
+        inspect.isgeneratorfunction(target)
+        or inspect.isgeneratorfunction(unwrapped)
+        or inspect.isgeneratorfunction(call_attr)
+    )
+    is_asyncgen = (
+        inspect.isasyncgenfunction(target)
+        or inspect.isasyncgenfunction(unwrapped)
+        or inspect.isasyncgenfunction(call_attr)
+    )
 
     if is_async:
       return await target(**args_to_call)
