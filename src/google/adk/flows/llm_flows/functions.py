@@ -24,10 +24,10 @@ from typing import Any
 from typing import AsyncGenerator
 from typing import AsyncIterator
 from typing import cast
+from typing import Iterator
+from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
-from typing import List
-from typing import Iterator
 import uuid
 
 from google.genai import types

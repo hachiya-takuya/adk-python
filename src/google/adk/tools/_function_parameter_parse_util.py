@@ -15,13 +15,13 @@
 
 from __future__ import annotations
 
-from enum import Enum
 from collections.abc import AsyncGenerator as ABCAsyncGenerator
 from collections.abc import AsyncIterable as ABCAsyncIterable
 from collections.abc import AsyncIterator as ABCAsyncIterator
 from collections.abc import Generator as ABCGenerator
 from collections.abc import Iterable as ABCIterable
 from collections.abc import Iterator as ABCIterator
+from enum import Enum
 import inspect
 import logging
 import types as typing_types
