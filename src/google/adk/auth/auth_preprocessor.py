@@ -112,7 +112,7 @@ class _AuthLlmRequestProcessor(BaseLlmRequestProcessor):
             function_call.id in tools_to_resume
             for function_call in function_calls
         ]):
-          if function_response_event_async_gen := await functions.handle_function_calls_async_gen(
+          if function_response_event := await functions.handle_function_calls_async(
               invocation_context,
               event,
               {
@@ -125,10 +125,7 @@ class _AuthLlmRequestProcessor(BaseLlmRequestProcessor):
               # auth response would be a dict keyed by function call id
               tools_to_resume,
           ):
-            async for (
-                function_response_event
-            ) in function_response_event_async_gen:
-              yield function_response_event
+            yield function_response_event
           return
       return
 
