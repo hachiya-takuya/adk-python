@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING
 from typing import TypeVar
 from typing import Union
 
+from pydantic_core import core_schema
+
 from ..agents.readonly_context import ReadonlyContext
 from .base_tool import BaseTool
 
@@ -79,6 +81,36 @@ class BaseToolset(ABC):
     """
     self.tool_filter = tool_filter
     self.tool_name_prefix = tool_name_prefix
+
+  @classmethod
+  def __get_pydantic_core_schema__(cls, source_type, handler):
+    """for serialize by pydantic.BaseModel.model_dump"""
+    def _serialize(v: BaseToolset):
+        return v.to_dict()
+
+    return core_schema.is_instance_schema(
+        cls,
+        serialization=core_schema.plain_serializer_function_ser_schema(
+            _serialize,
+            return_schema=core_schema.any_schema(),
+        ),
+    )
+
+  def to_dict(self) -> dict:
+    """for serialize by pydantic.BaseModel.model_dump"""
+    tool_filter = getattr(self, "tool_filter", None)
+    if callable(tool_filter):
+        tool_filter_repr = getattr(tool_filter, "__name__", tool_filter.__class__.__name__)
+    elif isinstance(tool_filter, list):
+        tool_filter_repr = tool_filter
+    else:
+        tool_filter_repr = None
+    return {
+        "toolset_class": self.__class__.__name__,
+        "toolset_module": self.__class__.__module__,
+        "tool_name_prefix": getattr(self, "tool_name_prefix", None),
+        "tool_filter": tool_filter_repr,
+    }
 
   @abstractmethod
   async def get_tools(
