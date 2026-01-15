@@ -207,7 +207,7 @@ async def test_request_confirmation_processor_success():
     mock_handle_function_calls_async_gen.assert_called_once()
     args, _ = mock_handle_function_calls_async_gen.call_args
 
-    assert list(args[1]) == [original_function_call]  # function_calls
+    assert args[1].content.parts[0].function_call == original_function_call  # function_calls
     assert args[3] == {MOCK_FUNCTION_CALL_ID}  # tools_to_confirm
     assert (
         args[4][MOCK_FUNCTION_CALL_ID] == user_confirmation

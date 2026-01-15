@@ -149,9 +149,20 @@ class _RequestConfirmationLlmRequestProcessor(BaseLlmRequestProcessor):
       if not tools_to_resume_with_confirmation:
         continue
 
+      function_calls_event = Event(
+        invocation_id=invocation_context.invocation_id,
+        author=invocation_context.agent.name,
+        branch=invocation_context.branch,
+        content=types.Content(
+            parts=[
+              types.Part(function_call=target_func) for target_func in tools_to_resume_with_args.values()
+            ]
+        ),
+      )
+
       if function_response_event_async_gen := functions.handle_function_calls_async_gen(
           invocation_context,
-          tools_to_resume_with_args.values(),
+          function_calls_event,
           {
               tool.name: tool
               for tool in await agent.canonical_tools(

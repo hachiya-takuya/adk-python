@@ -198,7 +198,7 @@ def handle_function_calls_async_gen(
 ) -> AsyncGenerator[Optional[Event]]:
   """Calls the functions and returns the function response event."""
   function_calls = function_call_event.get_function_calls()
-  return handle_function_call_list_async_gen(
+  return _handle_function_call_list_async_gen(
       invocation_context,
       function_calls,
       tools_dict,
@@ -207,7 +207,7 @@ def handle_function_calls_async_gen(
   )
 
 
-async def handle_function_call_list_async_gen(
+async def _handle_function_call_list_async_gen(
     invocation_context: InvocationContext,
     function_calls: list[types.FunctionCall],
     tools_dict: dict[str, BaseTool],
