@@ -687,17 +687,19 @@ class BaseLlmFlow(ABC):
         invocation_context, function_call_event, llm_request.tools_dict
     ):
       async with Aclosing(function_response_event_async_gen) as agen:
-        async for (
-            function_response_event
-        ) in agen:
+        async for function_response_event in agen:
           auth_event = functions.generate_auth_event(
               invocation_context, function_response_event
           )
           if auth_event:
             yield auth_event
 
-          tool_confirmation_event = functions.generate_request_confirmation_event(
-              invocation_context, function_call_event, function_response_event
+          tool_confirmation_event = (
+              functions.generate_request_confirmation_event(
+                  invocation_context,
+                  function_call_event,
+                  function_response_event,
+              )
           )
           if tool_confirmation_event:
             yield tool_confirmation_event

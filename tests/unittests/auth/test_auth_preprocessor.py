@@ -402,7 +402,9 @@ class TestAuthLlmRequestProcessor:
     async def mock_function_response_event_agen():
       yield mock_function_response_event
 
-    handle_function_calls_async_gen.return_value = mock_function_response_event_agen()
+    handle_function_calls_async_gen.return_value = (
+        mock_function_response_event_agen()
+    )
 
     result = []
     async for event in processor.run_async(

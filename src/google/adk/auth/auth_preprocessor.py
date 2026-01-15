@@ -127,9 +127,7 @@ class _AuthLlmRequestProcessor(BaseLlmRequestProcessor):
               tools_to_resume,
           ):
             async with Aclosing(function_response_event_async_gen) as agen:
-              async for (
-                  function_response_event
-              ) in agen:
+              async for function_response_event in agen:
                 yield function_response_event
           return
       return

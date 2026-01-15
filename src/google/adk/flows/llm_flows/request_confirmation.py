@@ -150,14 +150,15 @@ class _RequestConfirmationLlmRequestProcessor(BaseLlmRequestProcessor):
         continue
 
       function_calls_event = Event(
-        invocation_id=invocation_context.invocation_id,
-        author=invocation_context.agent.name,
-        branch=invocation_context.branch,
-        content=types.Content(
-            parts=[
-              types.Part(function_call=target_func) for target_func in tools_to_resume_with_args.values()
-            ]
-        ),
+          invocation_id=invocation_context.invocation_id,
+          author=invocation_context.agent.name,
+          branch=invocation_context.branch,
+          content=types.Content(
+              parts=[
+                  types.Part(function_call=target_func)
+                  for target_func in tools_to_resume_with_args.values()
+              ]
+          ),
       )
 
       if function_response_event_async_gen := functions.handle_function_calls_async_gen(
@@ -175,9 +176,7 @@ class _RequestConfirmationLlmRequestProcessor(BaseLlmRequestProcessor):
           tools_to_resume_with_confirmation,
       ):
         async with Aclosing(function_response_event_async_gen) as agen:
-          async for (
-              function_response_event
-          ) in agen:
+          async for function_response_event in agen:
             yield function_response_event
       return
 

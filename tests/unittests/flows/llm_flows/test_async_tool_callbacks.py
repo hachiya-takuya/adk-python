@@ -100,7 +100,7 @@ async def invoke_tool_with_callbacks(
   )
   result = None
   async for result_item in gen:
-      result = result_item
+    result = result_item
   return result
 
 

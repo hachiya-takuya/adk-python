@@ -379,7 +379,7 @@ async def test_live_callback_compatibility_with_async():
 
   async_result = None
   async for result_async_item in result_async_gen:
-      async_result = result_async_item
+    async_result = result_async_item
 
   # Get result from live version
   live_result = await handle_function_calls_live(

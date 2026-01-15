@@ -138,7 +138,7 @@ async def invoke_tool_with_plugin(mock_tool, mock_plugin) -> Optional[Event]:
   )
   result = None
   async for result_item in gen:
-      result = result_item
+    result = result_item
   return result
 
 

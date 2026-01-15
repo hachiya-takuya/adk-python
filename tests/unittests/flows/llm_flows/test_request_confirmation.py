@@ -193,7 +193,9 @@ async def test_request_confirmation_processor_success():
     async def mock_function_response_event_agen():
       yield expected_event
 
-    mock_handle_function_calls_async_gen.return_value = mock_function_response_event_agen()
+    mock_handle_function_calls_async_gen.return_value = (
+        mock_function_response_event_agen()
+    )
 
     events = []
     async for event in request_processor.run_async(
@@ -207,7 +209,9 @@ async def test_request_confirmation_processor_success():
     mock_handle_function_calls_async_gen.assert_called_once()
     args, _ = mock_handle_function_calls_async_gen.call_args
 
-    assert args[1].content.parts[0].function_call == original_function_call  # function_calls
+    assert (
+        args[1].content.parts[0].function_call == original_function_call
+    )  # function_calls
     assert args[3] == {MOCK_FUNCTION_CALL_ID}  # tools_to_confirm
     assert (
         args[4][MOCK_FUNCTION_CALL_ID] == user_confirmation
@@ -274,25 +278,29 @@ async def test_request_confirmation_processor_tool_not_confirmed():
       )
   )
 
-  with (patch(
+  with patch(
       "google.adk.flows.llm_flows.functions.handle_function_calls_async_gen"
-  ) as mock_handle_function_calls_async_gen):
+  ) as mock_handle_function_calls_async_gen:
+
     async def mock_function_response_event_agen():
       yield Event(
-        author="agent",
-        content=types.Content(
-            parts=[
-                types.Part(
-                    function_response=types.FunctionResponse(
-                        name=MOCK_TOOL_NAME,
-                        id=MOCK_FUNCTION_CALL_ID,
-                        response={"error": "Tool execution not confirmed"},
-                    )
-                )
-            ]
-        ),
+          author="agent",
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_response=types.FunctionResponse(
+                          name=MOCK_TOOL_NAME,
+                          id=MOCK_FUNCTION_CALL_ID,
+                          response={"error": "Tool execution not confirmed"},
+                      )
+                  )
+              ]
+          ),
+      )
+
+    mock_handle_function_calls_async_gen.return_value = (
+        mock_function_response_event_agen()
     )
-    mock_handle_function_calls_async_gen.return_value = mock_function_response_event_agen()
 
     events = []
     async for event in request_processor.run_async(

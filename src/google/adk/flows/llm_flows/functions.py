@@ -245,9 +245,9 @@ async def _handle_function_call_list_async_gen(
   merged_event = None
   result_events: List[Optional[Event]] = [None] * len(function_call_async_gens)
   function_response_events = []
-  async with Aclosing(_concat_function_call_generators(
-      function_call_async_gens
-  )) as agen:
+  async with Aclosing(
+      _concat_function_call_generators(function_call_async_gens)
+  ) as agen:
     async for idx, event in agen:
       result_events[idx] = event
       function_response_events = [

@@ -85,8 +85,9 @@ class BaseToolset(ABC):
   @classmethod
   def __get_pydantic_core_schema__(cls, source_type, handler):
     """for serialize by pydantic.BaseModel.model_dump"""
+
     def _serialize(v: BaseToolset):
-        return v.to_dict()
+      return v.to_dict()
 
     return core_schema.is_instance_schema(
         cls,
@@ -100,11 +101,13 @@ class BaseToolset(ABC):
     """for serialize by pydantic.BaseModel.model_dump"""
     tool_filter = getattr(self, "tool_filter", None)
     if callable(tool_filter):
-        tool_filter_repr = getattr(tool_filter, "__name__", tool_filter.__class__.__name__)
+      tool_filter_repr = getattr(
+          tool_filter, "__name__", tool_filter.__class__.__name__
+      )
     elif isinstance(tool_filter, list):
-        tool_filter_repr = tool_filter
+      tool_filter_repr = tool_filter
     else:
-        tool_filter_repr = None
+      tool_filter_repr = None
     return {
         "toolset_class": self.__class__.__name__,
         "toolset_module": self.__class__.__module__,

@@ -434,7 +434,7 @@ async def test_function_call_args_not_modified():
 
   result_async = None
   async for result_async_item in result_async_gen:
-      result_async = result_async_item
+    result_async = result_async_item
 
   # Verify original args are not modified
   assert function_call.args == original_args
@@ -495,7 +495,7 @@ async def test_function_call_args_none_handling():
 
   result_async = None
   async for result_async_item in result_async_gen:
-      result_async = result_async_item
+    result_async = result_async_item
 
   # Test handle_function_calls_live
   result_live = await handle_function_calls_live(
@@ -553,8 +553,7 @@ async def test_function_call_args_copy_behavior():
 
   result_async = None
   async for result_async_item in result_async_gen:
-      result_async = result_async_item
-
+    result_async = result_async_item
 
   # Verify original args are unchanged
   assert function_call.args == original_args
@@ -628,8 +627,7 @@ async def test_function_call_args_deep_copy_behavior():
 
   result_async = None
   async for result_async_item in result_async_gen:
-      result_async = result_async_item
-
+    result_async = result_async_item
 
   # Verify original args are completely unchanged
   assert function_call.args == original_args

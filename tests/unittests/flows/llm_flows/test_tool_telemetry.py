@@ -56,8 +56,9 @@ async def invoke_tool() -> Optional[Event]:
   )
   result = None
   async for result_item in gen:
-      result = result_item
+    result = result_item
   return result
+
 
 async def test_simple_function_with_mocked_tracer(monkeypatch):
   mock_start_as_current_span_func = mock.Mock()
