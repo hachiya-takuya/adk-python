@@ -149,7 +149,7 @@ class _RequestConfirmationLlmRequestProcessor(BaseLlmRequestProcessor):
       if not tools_to_resume_with_confirmation:
         continue
 
-      if function_response_event_async_gen := functions.handle_function_call_list_async_gen(
+      if function_response_event_async_gen := functions.handle_function_calls_async_gen(
           invocation_context,
           tools_to_resume_with_args.values(),
           {

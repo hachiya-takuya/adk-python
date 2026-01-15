@@ -126,10 +126,10 @@ class _AuthLlmRequestProcessor(BaseLlmRequestProcessor):
               # auth response would be a dict keyed by function call id
               tools_to_resume,
           ):
-            async with Aclosing(function_response_event_async_gen):
+            async with Aclosing(function_response_event_async_gen) as agen:
               async for (
                   function_response_event
-              ) in function_response_event_async_gen:
+              ) in agen:
                 yield function_response_event
           return
       return
