@@ -131,7 +131,7 @@ async def invoke_tool_with_plugin(mock_tool, mock_plugin) -> Optional[Event]:
       content=content,
   )
   tools_dict = {mock_tool.name: mock_tool}
-  gen = await handle_function_calls_async_gen(
+  gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,

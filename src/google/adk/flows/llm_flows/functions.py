@@ -189,7 +189,7 @@ def generate_request_confirmation_event(
   )
 
 
-async def handle_function_calls_async_gen(
+def handle_function_calls_async_gen(
     invocation_context: InvocationContext,
     function_call_event: Event,
     tools_dict: dict[str, BaseTool],
@@ -245,19 +245,20 @@ async def handle_function_call_list_async_gen(
   merged_event = None
   result_events: List[Optional[Event]] = [None] * len(function_call_async_gens)
   function_response_events = []
-  async for idx, event in _concat_function_call_generators(
+  async with Aclosing(_concat_function_call_generators(
       function_call_async_gens
-  ):
-    result_events[idx] = event
-    function_response_events = [
-        event for event in result_events if event is not None
-    ]
-    if function_response_events:
-      merged_event = merge_parallel_function_response_events(
-          function_response_events
-      )
-      if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
-        yield merged_event
+  )) as agen:
+    async for idx, event in agen:
+      result_events[idx] = event
+      function_response_events = [
+          event for event in result_events if event is not None
+      ]
+      if function_response_events:
+        merged_event = merge_parallel_function_response_events(
+            function_response_events
+        )
+        if invocation_context.run_config.streaming_mode == StreamingMode.SSE:
+          yield merged_event
   if invocation_context.run_config.streaming_mode != StreamingMode.SSE:
     yield merged_event
 
@@ -274,16 +275,17 @@ async def handle_function_call_list_async_gen(
 
 async def _concat_function_call_generators(
     gens: List[AsyncGenerator[Any]],
-) -> AsyncIterator[tuple[int, Any]]:
+) -> AsyncGenerator[tuple[int, Any]]:
   _SENTINEL = object()
   q = asyncio.Queue()
   gens = list(gens)
   n = len(gens)
 
-  async def __pump(idx: int, agen_: AsyncIterator[Any]):
+  async def __pump(idx: int, agen_: AsyncGenerator[Any]):
     try:
-      async for x in agen_:
-        await q.put(('ITEM', idx, x))
+      async with Aclosing(agen_) as agen_wrapped:
+        async for x in agen_wrapped:
+          await q.put(('ITEM', idx, x))
     except Exception as e:
       await q.put(('EXC', idx, e))
     finally:
@@ -510,13 +512,14 @@ async def _execute_single_function_call_async_gen(
 
   with tracer.start_as_current_span(f'execute_tool {tool.name}'):
     try:
-      async for function_response_event in _run_with_trace():
-        trace_tool_call(
-            tool=tool,
-            args=function_args,
-            function_response_event=function_response_event,
-        )
-        yield function_response_event
+      async with Aclosing(_run_with_trace()) as agen:
+        async for function_response_event in agen:
+          trace_tool_call(
+              tool=tool,
+              args=function_args,
+              function_response_event=function_response_event,
+          )
+          yield function_response_event
     except:
       trace_tool_call(
           tool=tool, args=function_args, function_response_event=None

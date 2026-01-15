@@ -426,7 +426,7 @@ async def test_function_call_args_not_modified():
   tools_dict = {tool.name: tool}
 
   # Test handle_function_calls_async
-  result_async_gen = await handle_function_calls_async_gen(
+  result_async_gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,
@@ -487,7 +487,7 @@ async def test_function_call_args_none_handling():
   tools_dict = {tool.name: tool}
 
   # Test handle_function_calls_async
-  result_async_gen = await handle_function_calls_async_gen(
+  result_async_gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,
@@ -545,7 +545,7 @@ async def test_function_call_args_copy_behavior():
   tools_dict = {tool.name: tool}
 
   # Test handle_function_calls_async
-  result_async_gen = await handle_function_calls_async_gen(
+  result_async_gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,
@@ -620,7 +620,7 @@ async def test_function_call_args_deep_copy_behavior():
   tools_dict = {tool.name: tool}
 
   # Test handle_function_calls_async
-  result_async_gen = await handle_function_calls_async_gen(
+  result_async_gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,

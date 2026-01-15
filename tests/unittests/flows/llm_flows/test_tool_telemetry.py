@@ -49,7 +49,7 @@ async def invoke_tool() -> Optional[Event]:
       content=content,
   )
   tools_dict = {tool.name: tool}
-  gen = await handle_function_calls_async_gen(
+  gen = handle_function_calls_async_gen(
       invocation_context,
       event,
       tools_dict,
