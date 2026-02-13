@@ -102,7 +102,8 @@ _SUPPORTED_FILE_CONTENT_MIME_TYPES = frozenset({
 })
 
 # Providers that require file_id instead of inline file_data
-_FILE_ID_REQUIRED_PROVIDERS = frozenset({"openai", "azure"})
+_FILE_ID_REQUIRED_PROVIDERS = frozenset({"openai"})
+_FILE_ATTACHED_DISABLE_PROVIDERS = frozenset({"azure"})
 
 _MISSING_TOOL_RESULT_MESSAGE = (
     "Error: Missing tool result (tool execution may have been interrupted "
@@ -225,6 +226,8 @@ def _requires_file_uri_fallback(
   """Returns True when `file_uri` should not be sent as a file content block."""
   if provider in _FILE_ID_REQUIRED_PROVIDERS:
     return not _looks_like_openai_file_id(file_uri)
+  if provider in _FILE_ATTACHED_DISABLE_PROVIDERS:
+    return True
   if provider == "anthropic":
     return True
   if provider == "vertex_ai" and not _is_litellm_gemini_model(model):
@@ -756,16 +759,39 @@ async def _get_content(
               "type": "file",
               "file": {"file_id": file_response.id},
           })
-        else:
+        elif provider not in _FILE_ATTACHED_DISABLE_PROVIDERS:
           content_objects.append({
               "type": "file",
               "file": {"file_data": data_uri},
           })
+        else:
+          logger.debug(
+              "File URI %s not supported for provider %s, using text fallback",
+              _redact_file_uri_for_log(
+                  "inline_data",
+                  display_name=part.inline_data.display_name,
+              ),
+              provider,
+          )
+          identifier = part.inline_data.display_name
+          content_objects.append({
+              "type": "text",
+              "text": f'[File reference: "{identifier}"]',
+          })
       else:
-        raise ValueError(
-            "LiteLlm(BaseLlm) does not support content part with MIME type "
-            f"{part.inline_data.mime_type}."
+        logger.debug(
+            "File URI %s not supported for provider %s, using text fallback",
+            _redact_file_uri_for_log(
+                "inline_data",
+                display_name=part.inline_data.display_name,
+            ),
+            provider,
         )
+        identifier = part.inline_data.display_name
+        content_objects.append({
+            "type": "text",
+            "text": f'[File reference: "{identifier}"]',
+        })
     elif part.file_data and part.file_data.file_uri:
       if (
           provider in _FILE_ID_REQUIRED_PROVIDERS
