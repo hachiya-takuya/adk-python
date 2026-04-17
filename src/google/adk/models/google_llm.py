@@ -56,6 +56,48 @@ On how to mitigate this issue, please refer to:
 https://google.github.io/adk-docs/agents/models/#error-code-429-resource_exhausted
 """
 
+_SUPPORTED_GEMINI_MIME_TYPES = frozenset({
+    # Images
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+
+    # Documents & Text
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "text/html",
+    "text/md",
+    "text/x-python",
+    "text/javascript",
+
+    # Audio
+    "audio/wav",
+    "audio/mp3",
+    "audio/aiff",
+    "audio/aac",
+    "audio/ogg",
+    "audio/flac",
+    "audio/mpeg",
+    "audio/mpga",
+    "audio/m4a",
+    "audio/pcm",
+    "audio/webm",
+
+    # Video
+    "video/mp4",
+    "video/mpeg",
+    "video/mov",
+    "video/quicktime",
+    "video/avi",
+    "video/x-flv",
+    "video/mpg",
+    "video/webm",
+    "video/wmv",
+    "video/3gpp"
+})
 
 class _ResourceExhaustedError(ClientError):
   """Represents an resources exhausted error received from the Model."""
@@ -440,11 +482,28 @@ class Gemini(BaseLlm):
           for part in content.parts:
             # Create copies to avoid mutating the original objects
             if part.inline_data:
-              part.inline_data = copy.copy(part.inline_data)
-              _remove_display_name_if_present(part.inline_data)
+                mime_type = (part.inline_data.mime_type or "").lower()
+                if mime_type not in _SUPPORTED_GEMINI_MIME_TYPES:
+                    identifier = part.inline_data.display_name or "inline_file"
+                    part.text = (part.text or "") + f'\n[File reference: "{identifier}"]'
+                    part.inline_data = None
+                    continue
+                
+                part.inline_data = copy.copy(part.inline_data)
+                _remove_display_name_if_present(part.inline_data)
+
             if part.file_data:
-              part.file_data = copy.copy(part.file_data)
-              _remove_display_name_if_present(part.file_data)
+                mime_type = (part.file_data.mime_type or "").lower()
+                identifier = part.file_data.display_name or part.file_data.file_uri or "unknown_file"
+
+                if mime_type not in _SUPPORTED_GEMINI_MIME_TYPES:
+                    logger.debug(f"MIME type {mime_type} not supported for Gemini, using text fallback.")
+                    part.text = (part.text or "") + f'\n[File reference: "{identifier}"]'
+                    part.file_data = None
+                    continue
+
+                part.file_data = copy.copy(part.file_data)
+                _remove_display_name_if_present(part.file_data)
 
     # Initialize config if needed
     if llm_request.config and llm_request.config.tools:
