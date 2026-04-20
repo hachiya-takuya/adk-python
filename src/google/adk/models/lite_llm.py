@@ -1230,7 +1230,7 @@ def _model_response_to_chunk(
     if reasoning_parts:
       yield ReasoningChunk(parts=reasoning_parts), finish_reason
 
-    if message_content:
+    if message_content is not None:
       yield TextChunk(text=message_content), finish_reason
 
     if tool_calls:
@@ -1255,19 +1255,20 @@ def _model_response_to_chunk(
     if finish_reason and not (message_content or tool_calls):
       yield None, finish_reason
 
-  if not message:
+  if message is None:
     yield None, None
 
   # Ideally usage would be expected with the last ModelResponseStream with a
   # finish_reason set. But this is not the case we are observing from litellm.
   # So we are sending it as a separate chunk to be set on the llm_response.
-  if response.get("usage", None):
-    yield UsageMetadataChunk(
-        prompt_tokens=response["usage"].get("prompt_tokens", 0),
-        completion_tokens=response["usage"].get("completion_tokens", 0),
-        total_tokens=response["usage"].get("total_tokens", 0),
-        cached_prompt_tokens=_extract_cached_prompt_tokens(response["usage"]),
-    ), None
+  usage = response.get("usage", {}) or {}
+
+  yield UsageMetadataChunk(
+      prompt_tokens=usage.get("prompt_tokens", 0),
+      completion_tokens=usage.get("completion_tokens", 0),
+      total_tokens=usage.get("total_tokens", 0),
+      cached_prompt_tokens=_extract_cached_prompt_tokens(usage),
+  ), None
 
 
 def _model_response_to_generate_content_response(
