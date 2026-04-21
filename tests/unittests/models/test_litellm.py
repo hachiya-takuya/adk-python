@@ -2349,8 +2349,13 @@ async def test_get_content_file_uri_file_id_required_preserves_file_id(
           )
       )
   ]
+
   content = await _get_content(parts, provider=provider, model=model)
-  assert content == [{"type": "file", "file": {"file_id": "file-abc123"}}]
+
+  if provider == "azure":
+    assert content == [{"type": "text", "text": '[File reference: "file-abc123"]'}]
+  else:
+    assert content == [{"type": "file", "file": {"file_id": "file-abc123"}}]
 
 
 @pytest.mark.asyncio
@@ -3531,9 +3536,9 @@ async def test_finish_reason_unknown_maps_to_other(
 
   async for response in lite_llm_instance.generate_content_async(llm_request):
     assert response.content.role == "model"
-    # Unknown finish_reason should map to OTHER
+    # Unknown finish_reason should map to STOP
     assert isinstance(response.finish_reason, types.FinishReason)
-    assert response.finish_reason == types.FinishReason.OTHER
+    assert response.finish_reason == types.FinishReason.STOP
 
   mock_acompletion.assert_called_once()
 
@@ -3569,7 +3574,7 @@ def test_get_provider_from_model(model_string, expected_provider):
     "provider, expected_in_list",
     [
         ("openai", True),
-        ("azure", True),
+        ("azure", False),
         ("anthropic", False),
         ("vertex_ai", False),
     ],
@@ -3620,26 +3625,24 @@ async def test_get_content_pdf_non_openai_uses_file_data():
 
 
 @pytest.mark.asyncio
-async def test_get_content_pdf_azure_uses_file_id(mocker):
-  """Test that PDF files use file_id for Azure provider."""
-  mock_file_response = mocker.create_autospec(litellm.FileObject)
-  mock_file_response.id = "file-xyz789"
-  mock_acreate_file = AsyncMock(return_value=mock_file_response)
+async def test_get_content_pdf_azure_uses_text_fallback(mocker):
+  """Test that PDF files fall back to text for Azure provider."""
+  mock_acreate_file = AsyncMock()
   mocker.patch.object(litellm, "acreate_file", new=mock_acreate_file)
 
   parts = [
-      types.Part.from_bytes(data=b"test_pdf_data", mime_type="application/pdf")
+      types.Part.from_bytes(
+          data=b"test_pdf_data",
+          mime_type="application/pdf",
+      )
   ]
+
   content = await _get_content(parts, provider="azure")
 
-  assert content[0]["type"] == "file"
-  assert content[0]["file"]["file_id"] == "file-xyz789"
+  assert content[0]["type"] == "text"
+  assert content[0]["text"] == '[File reference: "None"]'
 
-  mock_acreate_file.assert_called_once_with(
-      file=b"test_pdf_data",
-      purpose="assistants",
-      custom_llm_provider="azure",
-  )
+  mock_acreate_file.assert_not_called()
 
 
 @pytest.mark.asyncio

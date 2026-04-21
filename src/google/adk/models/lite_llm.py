@@ -1181,6 +1181,22 @@ def _function_declaration_to_tool_param(
   return tool_params
 
 
+def _has_meaningful_message_signal(
+    message: Message | dict[str, Any] | None,
+) -> bool:
+  """Returns True when a LiteLLM message/delta carries usable payload."""
+  if message is None:
+    return False
+  
+  return bool(
+    message.get("content")
+    or message.get("tool_calls")
+    or message.get("function_call")
+    or message.get("reasoning")
+    or message.get("reasoning_content")
+  )
+
+
 def _model_response_to_chunk(
     response: ModelResponse,
 ) -> Generator[
@@ -1209,11 +1225,22 @@ def _model_response_to_chunk(
 
   message = None
   if response.get("choices", None):
-    message = response["choices"][0].get("message", None)
-    finish_reason = response["choices"][0].get("finish_reason", None)
-    # check streaming delta
-    if message is None and response["choices"][0].get("delta", None):
-      message = response["choices"][0]["delta"]
+    choice = response["choices"][0]
+    message = choice.get("message", None)
+    finish_reason = choice.get("finish_reason", None)
+    delta = choice.get("delta", None)
+
+    using_delta_payload = False
+    if delta is not None and not _has_meaningful_message_signal(message):
+      message = delta
+      using_delta_payload = True
+
+    if message is not None and not _has_meaningful_message_signal(message):
+      message = None
+      using_delta_payload = False
+
+    if using_delta_payload and finish_reason == "stop":
+      finish_reason = None
 
     message_content: Optional[OpenAIMessageContent] = None
     tool_calls: list[ChatCompletionMessageToolCall] = []
@@ -1230,23 +1257,33 @@ def _model_response_to_chunk(
     if reasoning_parts:
       yield ReasoningChunk(parts=reasoning_parts), finish_reason
 
-    if message_content:
+    if message_content is not None:
       yield TextChunk(text=message_content), finish_reason
 
     if tool_calls:
       for idx, tool_call in enumerate(tool_calls):
-        # aggregate tool_call
-        if tool_call.type == "function":
+        if isinstance(tool_call, dict):
+          if tool_call.get("type") != "function":
+            continue
+          function_obj = tool_call.get("function") or {}
+          func_name = function_obj.get("name")
+          func_args = function_obj.get("arguments")
+          func_index = tool_call.get("index", idx)
+          tool_call_id = tool_call.get("id")
+        
+        else:
+          if tool_call.type != "function":
+            continue
           func_name = tool_call.function.name
           func_args = tool_call.function.arguments
           func_index = getattr(tool_call, "index", idx)
+          tool_call_id = tool_call.id
 
-          # Ignore empty chunks that don't carry any information.
-          if not func_name and not func_args:
-            continue
+        if not func_name and not func_args:
+          continue
 
-          yield FunctionChunk(
-              id=tool_call.id,
+        yield FunctionChunk(
+              id=tool_call_id,
               name=func_name,
               args=func_args,
               index=func_index,
@@ -1255,19 +1292,20 @@ def _model_response_to_chunk(
     if finish_reason and not (message_content or tool_calls):
       yield None, finish_reason
 
-  if not message:
+  if message is None and not response.get("choices", None):
     yield None, None
 
   # Ideally usage would be expected with the last ModelResponseStream with a
   # finish_reason set. But this is not the case we are observing from litellm.
   # So we are sending it as a separate chunk to be set on the llm_response.
-  if response.get("usage", None):
-    yield UsageMetadataChunk(
-        prompt_tokens=response["usage"].get("prompt_tokens", 0),
-        completion_tokens=response["usage"].get("completion_tokens", 0),
-        total_tokens=response["usage"].get("total_tokens", 0),
-        cached_prompt_tokens=_extract_cached_prompt_tokens(response["usage"]),
-    ), None
+  usage = response.get("usage", {}) or {}
+
+  yield UsageMetadataChunk(
+      prompt_tokens=usage.get("prompt_tokens", 0),
+      completion_tokens=usage.get("completion_tokens", 0),
+      total_tokens=usage.get("total_tokens", 0),
+      cached_prompt_tokens=_extract_cached_prompt_tokens(usage),
+  ), None
 
 
 def _model_response_to_generate_content_response(
@@ -1848,9 +1886,12 @@ class LiteLlm(BaseLlm):
                 cached_content_token_count=chunk.cached_prompt_tokens,
             )
 
-          if (
-              finish_reason == "tool_calls" or finish_reason == "stop"
-          ) and function_calls:
+          if function_calls and (
+              finish_reason == "tool_calls"
+              or finish_reason == "tool_use"
+              or finish_reason == "function_call"
+              or (finish_reason == "stop" and chunk is None)
+          ):
             tool_calls = []
             for index, func_data in function_calls.items():
               if func_data["id"]:
@@ -1884,7 +1925,10 @@ class LiteLlm(BaseLlm):
             text = ""
             reasoning_parts = []
             function_calls.clear()
-          elif finish_reason == "stop" and (text or reasoning_parts):
+          elif (text or reasoning_parts) and (
+            finish_reason == "length"
+            or (finish_reason == "stop" and chunk is None and not function_calls)
+          ):
             message_content = text if text else None
             aggregated_llm_response = _message_to_generate_content_response(
                 ChatCompletionAssistantMessage(
