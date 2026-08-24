@@ -3468,7 +3468,6 @@ async def test_get_content_file_uri(file_uri, mime_type):
     "provider,model",
     [
         ("openai", "openai/gpt-4o"),
-        ("azure", "azure/gpt-4"),
     ],
 )
 async def test_get_content_file_uri_file_id_required_raises_error(
@@ -3571,7 +3570,6 @@ async def test_get_content_file_uri_media_url_file_id_required_uses_url_type(
     "provider,model",
     [
         ("openai", "openai/gpt-4o"),
-        ("azure", "azure/gpt-4"),
     ],
 )
 async def test_get_content_file_uri_file_id_required_preserves_file_id(
@@ -3590,25 +3588,10 @@ async def test_get_content_file_uri_file_id_required_preserves_file_id(
 
 
 @pytest.mark.asyncio
-async def test_get_content_file_uri_azure_preserves_assistant_file_id():
-  parts = [
-      types.Part(
-          file_data=types.FileData(
-              file_uri="assistant-abc123",
-              mime_type="application/pdf",
-          )
-      )
-  ]
-  content = await _get_content(parts, provider="azure", model="azure/gpt-4.1")
-  assert content == [{"type": "file", "file": {"file_id": "assistant-abc123"}}]
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "provider,model",
     [
         ("openai", "openai/gpt-4o"),
-        ("azure", "azure/gpt-4"),
     ],
 )
 async def test_get_content_file_uri_http_pdf_file_id_required_raises_error(
@@ -3869,11 +3852,10 @@ async def test_get_content_audio_inline_data_emits_input_audio(
     "provider,model",
     [
         ("openai", "openai/gpt-4o"),
-        ("azure", "azure/gpt-4"),
     ],
 )
 async def test_get_content_audio_file_uri_http_raises_error(provider, model):
-  """Audio HTTP file_uri raises an error for openai/azure."""
+  """Audio HTTP file_uri raises an error for openai."""
   file_uri = "https://example.com/audio.mp3"
   parts = [
       types.Part(
@@ -5538,28 +5520,45 @@ async def test_get_content_pdf_non_openai_uses_file_data():
   assert "file_id" not in content[0]["file"]
 
 
+# Azure rejects `file` content blocks outright, so it no longer uploads or sends
+# one. See test_litellm_azure_file_fallback.py for what it sends instead.
+
+
 @pytest.mark.asyncio
-async def test_get_content_pdf_azure_uses_file_id(mocker):
-  """Test that PDF files use file_id for Azure provider."""
-  mock_file_response = mocker.create_autospec(litellm.FileObject)
-  mock_file_response.id = "file-xyz789"
-  mock_acreate_file = AsyncMock(return_value=mock_file_response)
-  mocker.patch.object(litellm, "acreate_file", new=mock_acreate_file)
+async def test_get_content_unsupported_inline_mime_type_falls_back_to_text():
+  """A MIME type no provider takes as a file is named, not raised over.
 
+  The attachment is one part of a request whose remaining parts are answerable,
+  so the turn continues and the model is told what it was not given.
+  """
   parts = [
-      types.Part.from_bytes(data=b"test_pdf_data", mime_type="application/pdf")
+      types.Part.from_text(text="What is in here?"),
+      types.Part.from_bytes(data=b"PK\x03\x04", mime_type="application/zip"),
   ]
-  content = await _get_content(parts, provider="azure")
 
-  assert content[0]["type"] == "file"
-  assert content[0]["file"]["file_id"] == "file-xyz789"
-  assert content[0]["file"]["format"] == "application/pdf"
+  content = await _get_content(parts, provider="anthropic")
 
-  mock_acreate_file.assert_called_once_with(
-      file=("document.pdf", b"test_pdf_data", "application/pdf"),
-      purpose="assistants",
-      custom_llm_provider="azure",
-  )
+  assert content == [
+      {"type": "text", "text": "What is in here?"},
+      {"type": "text", "text": '[File reference: "application/zip"]'},
+  ]
+
+
+@pytest.mark.asyncio
+async def test_get_content_unsupported_inline_mime_type_uses_display_name():
+  parts = [
+      types.Part(
+          inline_data=types.Blob(
+              data=b"PK\x03\x04",
+              mime_type="application/zip",
+              display_name="logs.zip",
+          )
+      )
+  ]
+
+  content = await _get_content(parts, provider="anthropic")
+
+  assert content == [{"type": "text", "text": '[File reference: "logs.zip"]'}]
 
 
 @pytest.mark.asyncio
