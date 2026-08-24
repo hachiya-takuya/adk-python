@@ -513,6 +513,27 @@ def _file_reference_text(identifier: str) -> str:
   return f'[File reference: "{identifier}"]'
 
 
+def _inline_file_reference_object(
+    inline_data: types.Blob,
+    mime_type: str,
+    *,
+    provider: str,
+    reason: str,
+) -> _TextContentObject:
+  """Returns the text block that replaces an unsendable inline file."""
+  # Falls back to the MIME type because inline data often arrives without a
+  # display name, and `[File reference: "None"]` tells the model less than the
+  # kind of file that was attached.
+  identifier = inline_data.display_name or mime_type
+  logger.debug(
+      "Inline file %s %s %s, using text fallback.",
+      identifier,
+      reason,
+      provider or "(unknown provider)",
+  )
+  return _TextContentObject(type="text", text=_file_reference_text(identifier))
+
+
 def _is_file_uri_supported(provider: str, model: str, file_uri: str) -> bool:
   """Returns True when `file_uri` can be sent as a file content block."""
   # If the model is proxied, the proxy might accept arbitrary URIs.
@@ -1602,23 +1623,12 @@ async def _get_content(
       elif not _supports_file_content_blocks(provider, model):
         # Checked before the upload below: uploading first would spend a request
         # and leave a file behind that no message can then refer to.
-        logger.debug(
-            "Inline file %s cannot be sent as a file content block to provider"
-            " %s, using text fallback.",
-            _redact_file_uri_for_log(
-                "inline_data", display_name=part.inline_data.display_name
-            ),
-            provider,
-        )
         content_objects.append(
-            _TextContentObject(
-                type="text",
-                # Falls back to the MIME type because inline data often arrives
-                # without a display name, and `[File reference: "None"]` tells
-                # the model less than the kind of file that was attached.
-                text=_file_reference_text(
-                    part.inline_data.display_name or mime_type
-                ),
+            _inline_file_reference_object(
+                part.inline_data,
+                mime_type,
+                provider=provider,
+                reason="cannot be sent as a file content block to provider",
             )
         )
       elif mime_type in _SUPPORTED_FILE_CONTENT_MIME_TYPES:
@@ -1651,9 +1661,17 @@ async def _get_content(
               _FileContentObject(type="file", file={"file_data": data_uri})
           )
       else:
-        raise ValueError(
-            "LiteLlm(BaseLlm) does not support content part with MIME type "
-            f"{part.inline_data.mime_type}."
+        # A type no provider takes as a file block is still worth naming rather
+        # than failing the turn over. The attachment is one part of a request
+        # the rest of which is answerable, and the model can report what it was
+        # not given.
+        content_objects.append(
+            _inline_file_reference_object(
+                part.inline_data,
+                mime_type,
+                provider=provider,
+                reason="is not a MIME type that can be sent as a file to",
+            )
         )
     elif part.file_data and part.file_data.file_uri:
       if (

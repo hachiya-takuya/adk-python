@@ -5525,6 +5525,43 @@ async def test_get_content_pdf_non_openai_uses_file_data():
 
 
 @pytest.mark.asyncio
+async def test_get_content_unsupported_inline_mime_type_falls_back_to_text():
+  """A MIME type no provider takes as a file is named, not raised over.
+
+  The attachment is one part of a request whose remaining parts are answerable,
+  so the turn continues and the model is told what it was not given.
+  """
+  parts = [
+      types.Part.from_text(text="What is in here?"),
+      types.Part.from_bytes(data=b"PK\x03\x04", mime_type="application/zip"),
+  ]
+
+  content = await _get_content(parts, provider="anthropic")
+
+  assert content == [
+      {"type": "text", "text": "What is in here?"},
+      {"type": "text", "text": '[File reference: "application/zip"]'},
+  ]
+
+
+@pytest.mark.asyncio
+async def test_get_content_unsupported_inline_mime_type_uses_display_name():
+  parts = [
+      types.Part(
+          inline_data=types.Blob(
+              data=b"PK\x03\x04",
+              mime_type="application/zip",
+              display_name="logs.zip",
+          )
+      )
+  ]
+
+  content = await _get_content(parts, provider="anthropic")
+
+  assert content == [{"type": "text", "text": '[File reference: "logs.zip"]'}]
+
+
+@pytest.mark.asyncio
 async def test_get_content_guess_extension_fallback(mocker):
   """Test that guess_extension fallback is used when guess_extension returns None."""
   import mimetypes
