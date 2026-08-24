@@ -242,6 +242,13 @@ _SUPPORTED_FILE_CONTENT_MIME_TYPES = frozenset({
 # Providers that require file_id instead of inline file_data
 _FILE_ID_REQUIRED_PROVIDERS = frozenset({"openai", "azure"})
 
+# Providers whose chat completions API rejects `file` content blocks outright.
+# Azure OpenAI answers `BadRequestError - Invalid Value: 'file'. This model does
+# not support file content types.` for a `file` block whether it carries
+# `file_data` or a `file_id` from an uploaded file, so there is no shape of file
+# block to send and the request has to describe the file in text instead.
+_FILE_CONTENT_UNSUPPORTED_PROVIDERS = frozenset({"azure"})
+
 # Routing-only prefix: requests go through a LiteLLM Proxy deployment, but the
 # payload must still be shaped for the provider named in the next segment.
 _PROXY_PROVIDER = "litellm_proxy"
@@ -485,6 +492,25 @@ def _redact_file_uri_for_log(
   if tail:
     return f"{parsed.scheme}://<redacted>/{tail}"
   return f"{parsed.scheme}://<redacted>"
+
+
+def _supports_file_content_blocks(provider: str, model: str) -> bool:
+  """Returns True when the provider accepts `file` content blocks at all."""
+  # A proxied request is shaped for the provider named after the prefix, but the
+  # proxy sits in front of it and may rewrite file blocks into whatever that
+  # deployment takes. Left to the provider's own answer, a proxy that already
+  # handles files would lose that ability here.
+  if model.lower().startswith(_PROXY_PROVIDER + "/"):
+    return True
+  return provider not in _FILE_CONTENT_UNSUPPORTED_PROVIDERS
+
+
+def _file_reference_text(identifier: str) -> str:
+  """Returns the text that stands in for a file the provider cannot accept."""
+  # Names the file rather than dropping it: the model still sees that a file was
+  # attached and what it was called, so it can say what it cannot read instead
+  # of answering as if nothing had been sent.
+  return f'[File reference: "{identifier}"]'
 
 
 def _is_file_uri_supported(provider: str, model: str, file_uri: str) -> bool:
@@ -1573,6 +1599,28 @@ async def _get_content(
         content_objects.append(
             _VideoContentObject(type="video_url", video_url={"url": data_uri})
         )
+      elif not _supports_file_content_blocks(provider, model):
+        # Checked before the upload below: uploading first would spend a request
+        # and leave a file behind that no message can then refer to.
+        logger.debug(
+            "Inline file %s cannot be sent as a file content block to provider"
+            " %s, using text fallback.",
+            _redact_file_uri_for_log(
+                "inline_data", display_name=part.inline_data.display_name
+            ),
+            provider,
+        )
+        content_objects.append(
+            _TextContentObject(
+                type="text",
+                # Falls back to the MIME type because inline data often arrives
+                # without a display name, and `[File reference: "None"]` tells
+                # the model less than the kind of file that was attached.
+                text=_file_reference_text(
+                    part.inline_data.display_name or mime_type
+                ),
+            )
+        )
       elif mime_type in _SUPPORTED_FILE_CONTENT_MIME_TYPES:
         # OpenAI/Azure require file_id from uploaded file, not inline data
         if provider in _FILE_ID_REQUIRED_PROVIDERS:
@@ -1610,6 +1658,7 @@ async def _get_content(
     elif part.file_data and part.file_data.file_uri:
       if (
           provider in _FILE_ID_REQUIRED_PROVIDERS
+          and _supports_file_content_blocks(provider, model)
           and _looks_like_openai_file_id(part.file_data.file_uri)
       ):
         content_objects.append(
@@ -1656,6 +1705,30 @@ async def _get_content(
                 )
             )
             continue
+
+      # Placed after the media-URL shortcuts above: those emit `image_url` and
+      # `video_url` blocks, which the provider does accept, and only a `file`
+      # block has to be replaced.
+      if not _supports_file_content_blocks(provider, model):
+        identifier = part.file_data.display_name or _redact_file_uri_for_log(
+            part.file_data.file_uri
+        )
+        logger.debug(
+            "File URI %s cannot be sent as a file content block to provider %s,"
+            " using text fallback.",
+            identifier,
+            provider,
+        )
+        content_objects.append(
+            _TextContentObject(
+                type="text",
+                # A URI is redacted rather than quoted verbatim, because it can
+                # carry a signed token, and this string is sent to the model and
+                # kept in session history.
+                text=_file_reference_text(identifier),
+            )
+        )
+        continue
 
       if not _is_file_uri_supported(provider, model, part.file_data.file_uri):
         redacted_file_uri = _redact_file_uri_for_log(
