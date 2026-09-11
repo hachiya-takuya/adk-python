@@ -1203,12 +1203,7 @@ async def _drain_tool_result_stream(
   user-facing message rather than a result, so it is streamed and then does
   not compete to be the last value.
 
-  Reporting a value when it arrives, rather than holding it back until the
-  next one proves it was not the last, is what lets a progress message reach
-  the user while the work it describes is still running. Holding it back
-  delays every report by one step, so the last progress message a tool sends
-  only arrives together with the result it was meant to precede. The cost is
-  that the last value is delivered twice, once as progress and once as the
+  The last value is delivered twice, once as progress and once as the
   result; ``will_continue`` tells the two apart, and is true on the progress
   copy because a further FunctionResponse for that call does follow.
 
@@ -1258,9 +1253,6 @@ async def _drain_tool_result_stream(
             invocation_context=invocation_context,
         )
 
-  # A tool that fails part way through needs no special handling here: every
-  # value it managed to yield has already been reported, so there is nothing
-  # buffered to flush before the failure propagates to the caller.
   return result
 
 
